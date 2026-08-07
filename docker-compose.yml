@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-scicompta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scicompta}
+      POSTGRES_DB: ${POSTGRES_DB:-scicompta}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scicompta}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    image: dmachard/sci-compta-backend:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scicompta}:${POSTGRES_PASSWORD:-scicompta}@db:5432/${POSTGRES_DB:-scicompta}
+      PYTHONPATH: /app
+    volumes:
+      - uploads_data:/app/uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      bash -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    image: dmachard/sci-compta-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  uploads_data:

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="indigo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Building 1 -->
+  <path d="M160 416V192C160 174.327 174.327 160 192 160H224V416H160Z" fill="#e2e8f0"/>
+  <!-- Building 2 (Taller) -->
+  <path d="M256 416V128C256 110.327 270.327 96 288 96H352C369.673 96 384 110.327 384 128V416H256Z" fill="#94a3b8"/>
+  
+  <!-- Arrow going up -->
+  <path d="M128 288L240 176L304 240L416 128" stroke="url(#indigo)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M336 128H416V208" stroke="url(#indigo)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Base line -->
+  <path d="M96 416H416" stroke="#1e293b" stroke-width="32" stroke-linecap="round"/>
+</svg>

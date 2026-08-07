@@ -1,0 +1,30 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  dockerhub:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Log in to DockerHub
+      run: |
+        echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_LOGIN }}" --password-stdin
+
+    - name: Build and Push Backend Image
+      run: |
+        docker build ./backend --file ./backend/Dockerfile -t dmachard/sci-compta-backend:latest -t dmachard/sci-compta-backend:${{ github.event.release.tag_name }}
+        docker push dmachard/sci-compta-backend:latest
+        docker push dmachard/sci-compta-backend:${{ github.event.release.tag_name }}
+
+    - name: Build and Push Frontend Image
+      run: |
+        docker build ./frontend --file ./frontend/Dockerfile -t dmachard/sci-compta-frontend:latest -t dmachard/sci-compta-frontend:${{ github.event.release.tag_name }}
+        docker push dmachard/sci-compta-frontend:latest
+        docker push dmachard/sci-compta-frontend:${{ github.event.release.tag_name }}
