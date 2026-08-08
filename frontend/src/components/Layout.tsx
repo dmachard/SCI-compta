@@ -87,8 +87,8 @@ export default function Layout({ user, onLogout, children }: Props) {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-border">
+        {/* Logout & Version */}
+        <div className="p-4 border-t border-border space-y-2">
           <button
             onClick={onLogout}
             className="flex items-center gap-3 w-full p-2 text-sm font-medium text-text-secondary hover:text-danger rounded-lg hover:bg-bg-hover transition-colors"
@@ -97,6 +97,10 @@ export default function Layout({ user, onLogout, children }: Props) {
             <LogOut size={18} />
             Déconnexion
           </button>
+          <div className="px-2 pt-1 text-xs text-text-muted flex justify-between items-center">
+            <span>Version</span>
+            <span className="font-mono bg-bg-input px-2 py-0.5 rounded text-text-secondary border border-border">{__APP_VERSION__}</span>
+          </div>
         </div>
       </aside>
 

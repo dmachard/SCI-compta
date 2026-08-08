@@ -90,6 +90,10 @@ export default function LoginPage({ onLogin, onNavigateSetup }: Props) {
             </div>
           )}
         </form>
+
+        <p className="text-center text-xs text-text-muted mt-6 font-mono">
+          {__APP_VERSION__}
+        </p>
       </div>
     </div>
   );
