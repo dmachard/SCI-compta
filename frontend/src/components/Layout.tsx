@@ -96,7 +96,7 @@ export default function Layout({ user, onLogout, children }: Props) {
         </nav>
 
         {/* User Info & Footer */}
-        <div className="p-3 border-t border-border space-y-2 bg-slate-50/50">
+        <div className="p-3 border-t border-border bg-slate-50/50">
           <div className="flex items-center justify-between gap-2.5 p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
             {/* Avatar & User Details */}
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -136,11 +136,6 @@ export default function Layout({ user, onLogout, children }: Props) {
             >
               <LogOut size={16} />
             </button>
-          </div>
-
-          <div className="px-2 text-[10px] text-slate-400 flex justify-between items-center font-mono">
-            <span>Gestion SCI</span>
-            <span>v{__APP_VERSION__}</span>
           </div>
         </div>
       </aside>

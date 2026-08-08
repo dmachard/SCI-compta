@@ -62,8 +62,10 @@ export default function App() {
     );
   }
 
+  const isUnconfigured = configured === false;
+
   // Pas encore configuré ou bouton d'initialisation cliqué → setup
-  if (configured === false || showSetup) {
+  if (isUnconfigured || showSetup) {
     return (
       <SetupPage
         onSetup={(token) => {
@@ -80,7 +82,7 @@ export default function App() {
     return (
       <LoginPage
         onLogin={handleLogin}
-        onNavigateSetup={configured === false ? () => setShowSetup(true) : undefined}
+        onNavigateSetup={isUnconfigured ? () => setShowSetup(true) : undefined}
       />
     );
   }
