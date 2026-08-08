@@ -7,6 +7,7 @@ import {
   CalendarRange,
   FileText,
   Settings,
+  FolderArchive,
   LogOut,
   Menu,
   X,
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/banque', label: 'Compte courant de la SCI', icon: CreditCard },
   { to: '/associes', label: 'Comptes courant associés', icon: Users },
   { to: '/exercices', label: 'Bilan annuel', icon: CalendarRange },
+  { to: '/documents', label: 'Documents', icon: FolderArchive },
   { to: '/sci', label: 'Configuration', icon: Settings },
 ];
 

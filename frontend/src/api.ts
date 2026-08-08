@@ -144,5 +144,43 @@ export const bankApi = {
     api.delete<{ message: string }>('/bank/transactions/purge/all').then((r) => r.data),
 };
 
+// ─── Documents ─────────────────────────────────────────────
+
+export const documentsApi = {
+  list: (params?: { category?: string; search?: string }) =>
+    api.get<DocumentItem[]>('/documents', { params }).then((r) => r.data),
+  upload: (formData: FormData) =>
+    api.post<DocumentItem>('/documents/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }).then((r) => r.data),
+  delete: (id: number) =>
+    api.delete<{ message: string }>(`/documents/${id}`).then((r) => r.data),
+  update: (
+    id: number,
+    data: {
+      category?: string;
+      supplier?: string;
+      document_date?: string | null;
+      notes?: string;
+    }
+  ) => api.put<DocumentItem>(`/documents/${id}`, data).then((r) => r.data),
+  downloadBlob: async (id: number, filename: string) => {
+    const response = await api.get(`/documents/${id}/download`, {
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], {
+      type: response.headers['content-type'] || 'application/octet-stream',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  },
+};
+
 export default api;
 

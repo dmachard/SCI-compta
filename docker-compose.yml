@@ -21,8 +21,9 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-scicompta}:${POSTGRES_PASSWORD:-scicompta}@db:5432/${POSTGRES_DB:-scicompta}
       PYTHONPATH: /app
+      UPLOAD_DIR: /app/uploads
     volumes:
-      - uploads_data:/app/uploads
+      - ./uploads:/app/uploads
     ports:
       - "8000:8000"
     depends_on:
@@ -41,4 +42,3 @@ services:
 
 volumes:
   pgdata:
-  uploads_data:

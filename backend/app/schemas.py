@@ -334,3 +334,31 @@ class ImportCSVResponse(BaseModel):
     skipped_count: int
     total_count: int
 
+
+# ─── Documents ────────────────────────────────────────────────
+
+
+class DocumentResponse(BaseModel):
+    id: int
+    fiscal_year_id: int | None = None
+    document_type: str
+    original_filename: str
+    supplier: str
+    document_date: date | None = None
+    amount_ht: float | None = None
+    tva: float | None = None
+    amount_ttc: float | None = None
+    category: str
+    bank_transaction_id: int | None = None
+    notes: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentUpdateRequest(BaseModel):
+    category: str | None = None
+    supplier: str | None = None
+    document_date: date | None = None
+    notes: str | None = None
+

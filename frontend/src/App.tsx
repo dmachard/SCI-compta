@@ -12,6 +12,7 @@ import Capital from './pages/Capital';
 import CurrentAccounts from './pages/CurrentAccounts';
 import FiscalYears from './pages/FiscalYears';
 import BankAccounts from './pages/BankAccounts';
+import DocumentsPage from './pages/Documents';
 import Tax2072 from './pages/Tax2072';
 
 export default function App() {
@@ -95,6 +96,7 @@ export default function App() {
         <Route path="/banque" element={<BankAccounts />} />
         <Route path="/comptes-courants" element={<CurrentAccounts />} />
         <Route path="/exercices" element={<FiscalYears />} />
+        <Route path="/documents" element={<DocumentsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

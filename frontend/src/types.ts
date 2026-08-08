@@ -218,3 +218,21 @@ export interface ImportCSVResponse {
   total_count: number;
 }
 
+// ─── Documents ─────────────────────────────────────────────
+
+export interface DocumentItem {
+  id: number;
+  fiscal_year_id: number | null;
+  document_type: string;
+  original_filename: string;
+  supplier: string;
+  document_date: string | null;
+  amount_ht: number | null;
+  tva: number | null;
+  amount_ttc: number | null;
+  category: string;
+  bank_transaction_id: number | null;
+  notes: string;
+  created_at: string;
+}
+
