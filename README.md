@@ -1,6 +1,6 @@
 # SCI-Compta
 
-Application web de gestion comptable pour SCI familiale à l'IR.
+Application web de gestion comptable pour SCI familiale.
 
 ## Démarrage
 
