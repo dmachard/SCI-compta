@@ -42,7 +42,7 @@ jobs:
         node-version: '20'
 
     - name: Install Dependencies
-      run: npm --prefix frontend ci
+      run: npm --prefix frontend install
 
     - name: Run Vitest
       run: npm --prefix frontend test
