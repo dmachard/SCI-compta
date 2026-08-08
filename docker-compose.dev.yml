@@ -1,12 +1,12 @@
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: scicompta
       POSTGRES_PASSWORD: scicompta
       POSTGRES_DB: scicompta
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:

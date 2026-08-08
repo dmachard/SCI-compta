@@ -2,6 +2,8 @@
 
 Application web de gestion comptable pour SCI familiale.
 
+![Application Comptable SCI](doc/imgs/webinterface_overview.png)
+
 ## Démarrage
 
 ### Configuration

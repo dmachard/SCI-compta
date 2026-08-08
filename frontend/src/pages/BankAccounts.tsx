@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X } from 'lucide-react';
-import { bankApi, associatesApi } from '../api';
-import type { BankAccount, BankTransaction, Associate, ImportCSVResponse } from '../types';
+import { bankApi, associatesApi, authApi } from '../api';
+import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User } from '../types';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -25,6 +25,7 @@ const COMMON_CATEGORIES = [
 ];
 
 export default function BankAccounts() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [associates, setAssociates] = useState<Associate[]>([]);
@@ -55,11 +56,13 @@ export default function BankAccounts() {
       bankApi.getAccounts(),
       bankApi.getTransactions({ status: statusFilter || undefined, search: searchFilter || undefined }),
       associatesApi.list(),
+      authApi.me().catch(() => null),
     ])
-      .then(([accs, txs, assocs]) => {
+      .then(([accs, txs, assocs, me]) => {
         setAccounts(accs);
         setTransactions(txs);
         setAssociates(assocs);
+        setCurrentUser(me);
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
@@ -192,14 +195,14 @@ export default function BankAccounts() {
           </div>
 
           {/* Boutons d'action principaux */}
-          <div className="flex items-center space-x-3">
-            <label htmlFor="csv-upload-input" className="cursor-pointer flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md">
-              <Upload className="w-4 h-4" />
-              <span>{uploading ? "Importation..." : "Importer un relevé CSV"}</span>
-            </label>
-
-
-          </div>
+          {currentUser?.role === 'gerant' && (
+            <div className="flex items-center space-x-3">
+              <label htmlFor="csv-upload-input" className="cursor-pointer flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md">
+                <Upload className="w-4 h-4" />
+                <span>{uploading ? "Importation..." : "Importer un relevé CSV"}</span>
+              </label>
+            </div>
+          )}
         </div>
       </div>
 
@@ -342,23 +345,29 @@ export default function BankAccounts() {
 
                       {/* Action */}
                       <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-2">
-                        <button
-                          onClick={() => openReconcileModal(tx)}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                            isClassified
-                              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
-                          }`}
-                        >
-                          {isClassified ? 'Modifier' : 'Classer'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTx(tx.id)}
-                          className="p-1 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
-                          title="Supprimer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {currentUser?.role === 'gerant' ? (
+                          <>
+                            <button
+                              onClick={() => openReconcileModal(tx)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                isClassified
+                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
+                              }`}
+                            >
+                              {isClassified ? 'Modifier' : 'Classer'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTx(tx.id)}
+                              className="p-1 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                              title="Supprimer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-400 font-medium">Lecture seule</span>
+                        )}
                       </td>
                     </tr>
                   );

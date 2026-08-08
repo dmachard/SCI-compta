@@ -6,6 +6,7 @@ export interface User {
   full_name: string;
   role: string;
   is_active: boolean;
+  associate_id?: number | null;
 }
 
 export interface TokenResponse {
@@ -44,6 +45,7 @@ export interface Associate {
   is_active: boolean;
   is_manager: boolean;
   quote_part: number;
+  has_account?: boolean;
 }
 
 export interface AssociateSummary {

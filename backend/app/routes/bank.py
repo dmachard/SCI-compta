@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.auth import get_current_user
+from app.auth import get_current_user, require_manager
 from app.database import get_db
 from app.models import (
     Associate,
@@ -77,7 +77,7 @@ def list_bank_accounts(
 def create_bank_account(
     req: BankAccountCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(require_manager),
 ):
     sci_id = get_default_sci_id(db)
     acc = BankAccount(
@@ -103,7 +103,7 @@ def update_bank_account(
     account_id: int,
     req: BankAccountUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(require_manager),
 ):
     acc = db.query(BankAccount).filter(BankAccount.id == account_id).first()
     if not acc:
@@ -170,7 +170,7 @@ async def import_bank_csv(
     file: UploadFile = File(...),
     account_id: int | None = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(require_manager),
 ):
     sci_id = get_default_sci_id(db)
 
@@ -305,7 +305,7 @@ def reconcile_transaction(
     tx_id: int,
     req: ReconcileRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(require_manager),
 ):
     tx = db.query(BankTransaction).filter(BankTransaction.id == tx_id).first()
     if not tx:
@@ -375,7 +375,7 @@ def reconcile_transaction(
 def delete_transaction(
     tx_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(require_manager),
 ):
     tx = db.query(BankTransaction).filter(BankTransaction.id == tx_id).first()
     if not tx:
@@ -398,7 +398,7 @@ def delete_transaction(
 @router.delete("/transactions/purge/all")
 def purge_all_transactions(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _ = Depends(require_manager),
 ):
     sci_id = get_default_sci_id(db)
 

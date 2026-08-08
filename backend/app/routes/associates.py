@@ -9,12 +9,15 @@ from app.models import (
     Associate,
     CurrentAccountMovement,
     FundCallLine,
+    User,
 )
 from app.schemas import (
+    AssociateAccountCreate,
     AssociateCreate,
     AssociateResponse,
     AssociateSummary,
     AssociateUpdate,
+    UserResponse,
 )
 
 router = APIRouter(prefix="/api/associates", tags=["associés"])
@@ -25,10 +28,12 @@ def _get_total_shares(db: Session) -> int:
     return result or 0
 
 
-def _enrich_response(associate: Associate, total_shares: int) -> AssociateResponse:
+def _enrich_response(associate: Associate, total_shares: int, db: Session) -> AssociateResponse:
     quote_part = (associate.shares / total_shares * 100) if total_shares > 0 else 0
     resp = AssociateResponse.model_validate(associate)
     resp.quote_part = round(quote_part, 2)
+    has_user = db.query(User).filter(User.associate_id == associate.id).first() is not None
+    resp.has_account = has_user
     return resp
 
 
@@ -38,7 +43,7 @@ def list_associates(
 ):
     associates = db.query(Associate).filter(Associate.is_active).all()
     total = _get_total_shares(db)
-    return [_enrich_response(a, total) for a in associates]
+    return [_enrich_response(a, total, db) for a in associates]
 
 
 @router.post("", response_model=AssociateResponse)
@@ -55,7 +60,7 @@ def create_associate(
     db.commit()
     db.refresh(associate)
     total = _get_total_shares(db)
-    return _enrich_response(associate, total)
+    return _enrich_response(associate, total, db)
 
 
 @router.get("/{associate_id}", response_model=AssociateResponse)
@@ -68,7 +73,7 @@ def get_associate(
     if not associate:
         raise HTTPException(404, "Associé non trouvé")
     total = _get_total_shares(db)
-    return _enrich_response(associate, total)
+    return _enrich_response(associate, total, db)
 
 
 @router.put("/{associate_id}", response_model=AssociateResponse)
@@ -86,7 +91,68 @@ def update_associate(
     db.commit()
     db.refresh(associate)
     total = _get_total_shares(db)
-    return _enrich_response(associate, total)
+    return _enrich_response(associate, total, db)
+
+
+@router.post("/{associate_id}/account", response_model=UserResponse)
+def create_or_update_associate_account(
+    associate_id: int,
+    data: AssociateAccountCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_manager),
+):
+    associate = db.query(Associate).filter(Associate.id == associate_id).first()
+    if not associate:
+        raise HTTPException(404, "Associé non trouvé")
+
+    username = (data.username or associate.email or "").strip()
+    if not username:
+        raise HTTPException(400, "Un identifiant est obligatoire pour créer ou modifier l'accès")
+
+    # Mettre à jour l'identifiant sur la fiche associé si modifié
+    associate.email = username
+
+    from app.auth import hash_password
+
+    user = db.query(User).filter(User.associate_id == associate.id).first()
+    if not user:
+        user = db.query(User).filter(User.email == username).first()
+
+    if user:
+        user.email = username
+        user.hashed_password = hash_password(data.password)
+        user.full_name = f"{associate.first_name} {associate.last_name}".strip()
+        user.associate_id = associate.id
+    else:
+        user = User(
+            email=username,
+            hashed_password=hash_password(data.password),
+            full_name=f"{associate.first_name} {associate.last_name}".strip(),
+            role="associe",
+            associate_id=associate.id,
+        )
+        db.add(user)
+
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/{associate_id}/account")
+def delete_associate_account(
+    associate_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_manager),
+):
+    user = db.query(User).filter(User.associate_id == associate_id).first()
+    if not user:
+        raise HTTPException(404, "Aucun accès trouvé pour cet associé")
+    if user.role == "gerant":
+        raise HTTPException(400, "Impossible de supprimer le compte utilisateur du gérant")
+
+    db.delete(user)
+    db.commit()
+    return {"message": "Accès utilisateur supprimé avec succès"}
 
 
 @router.get("/{associate_id}/summary", response_model=AssociateSummary)

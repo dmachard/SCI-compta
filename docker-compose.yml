@@ -1,13 +1,13 @@
 services:
   db:
-    image: postgres:18-alpine
+    image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-scicompta}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-scicompta}
       POSTGRES_DB: ${POSTGRES_DB:-scicompta}
     volumes:
-      - pgdata:/var/lib/postgresql
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-scicompta}" ]
       interval: 5s

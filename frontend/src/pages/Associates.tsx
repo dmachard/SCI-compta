@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, X, UserCheck, Users } from 'lucide-react';
-import { associatesApi, currentAccountsApi, sciApi } from '../api';
-import type { Associate, CurrentAccountBalance, SCI } from '../types';
+import { associatesApi, authApi, currentAccountsApi, sciApi } from '../api';
+import type { Associate, CurrentAccountBalance, SCI, User } from '../types';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -14,6 +14,7 @@ function fmt(n: number): string {
 }
 
 export default function Associates() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [balances, setBalances] = useState<CurrentAccountBalance[]>([]);
   const [sci, setSci] = useState<SCI | null>(null);
@@ -33,11 +34,17 @@ export default function Associates() {
 
   function loadData() {
     setLoading(true);
-    Promise.all([associatesApi.list(), currentAccountsApi.balances(), sciApi.get()])
-      .then(([assocs, bals, sciData]) => {
+    Promise.all([
+      associatesApi.list(),
+      currentAccountsApi.balances(),
+      sciApi.get(),
+      authApi.me().catch(() => null),
+    ])
+      .then(([assocs, bals, sciData, me]) => {
         setAssociates(assocs);
         setBalances(bals);
         setSci(sciData);
+        setCurrentUser(me);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -115,13 +122,15 @@ export default function Associates() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md self-start sm:self-auto"
-          >
-            {showForm ? <X size={16} /> : <Plus size={16} />}
-            {showForm ? 'Annuler' : 'Ajouter un associé'}
-          </button>
+          {currentUser?.role === 'gerant' && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md self-start sm:self-auto"
+            >
+              {showForm ? <X size={16} /> : <Plus size={16} />}
+              {showForm ? 'Annuler' : 'Ajouter un associé'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -149,6 +158,15 @@ export default function Associates() {
                 value={form.first_name}
                 onChange={(e) => setForm({ ...form, first_name: e.target.value })}
                 required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Identifiant de connexion</label>
+              <input
+                className={inputClass}
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="ex: jean.dupont"
               />
             </div>
             <div>
@@ -245,6 +263,11 @@ export default function Associates() {
                           {a.is_manager && (
                             <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-extrabold border border-indigo-100">
                               Gérant
+                            </span>
+                          )}
+                          {a.has_account && (
+                            <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md font-extrabold border border-emerald-100" title="Accès application actif">
+                              Accès web
                             </span>
                           )}
                         </Link>

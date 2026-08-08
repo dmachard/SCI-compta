@@ -28,6 +28,7 @@ class UserResponse(BaseModel):
     full_name: str
     role: str
     is_active: bool
+    associate_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -92,6 +93,11 @@ class AssociateUpdate(BaseModel):
     is_manager: bool | None = None
 
 
+class AssociateAccountCreate(BaseModel):
+    password: str
+    username: str | None = None
+
+
 class AssociateResponse(BaseModel):
     id: int
     last_name: str
@@ -103,6 +109,7 @@ class AssociateResponse(BaseModel):
     is_active: bool
     is_manager: bool
     quote_part: float = 0.0  # calculée
+    has_account: bool = False
 
     model_config = {"from_attributes": True}
 

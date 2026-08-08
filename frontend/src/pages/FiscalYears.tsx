@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, X, CalendarRange, Lock, Unlock, ArrowUpRight, ArrowDownRight, PieChart, Printer, FileCheck, FileText } from 'lucide-react';
-import { fiscalYearsApi, sciApi, bankApi } from '../api';
-import type { FiscalYear, FiscalYearSummary, Tax2072Summary, SCI, BankAccount } from '../types';
+import { fiscalYearsApi, sciApi, bankApi, authApi } from '../api';
+import type { FiscalYear, FiscalYearSummary, Tax2072Summary, SCI, BankAccount, User } from '../types';
 import AGOPvView from '../components/AGOPvView';
 
 function fmt(n: number): string {
@@ -14,6 +14,7 @@ function fmt(n: number): string {
 }
 
 export default function FiscalYears() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sci, setSci] = useState<SCI | null>(null);
   const [fiscalYears, setFiscalYears] = useState<FiscalYear[]>([]);
   const [selectedFyId, setSelectedFyId] = useState<number | null>(null);
@@ -39,10 +40,12 @@ export default function FiscalYears() {
       sciApi.get().catch(() => null),
       fiscalYearsApi.list(),
       bankApi.getAccounts().catch(() => []),
-    ]).then(([s, years, accounts]) => {
+      authApi.me().catch(() => null),
+    ]).then(([s, years, accounts, me]) => {
       setSci(s);
       setFiscalYears(years);
       setBankAccounts(accounts);
+      setCurrentUser(me);
       if (years.length > 0) {
         const targetId = selectId || selectedFyId || years[0].id;
         setSelectedFyId(targetId);
@@ -188,33 +191,37 @@ export default function FiscalYears() {
                 <span>Imprimer Bilan</span>
               </button>
 
-              {currentFy && (
-                isClosed ? (
-                  <button
-                    onClick={handleReopenFy}
-                    className="flex items-center space-x-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
-                  >
-                    <Unlock className="w-4 h-4 text-slate-500" />
-                    <span>Rouvrir</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleCloseFy}
-                    className="flex items-center space-x-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all"
-                  >
-                    <Lock className="w-4 h-4 text-indigo-400" />
-                    <span>Clôturer</span>
-                  </button>
-                )
-              )}
+              {currentUser?.role === 'gerant' && (
+                <>
+                  {currentFy && (
+                    isClosed ? (
+                      <button
+                        onClick={handleReopenFy}
+                        className="flex items-center space-x-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                      >
+                        <Unlock className="w-4 h-4 text-slate-500" />
+                        <span>Rouvrir</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleCloseFy}
+                        className="flex items-center space-x-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all"
+                      >
+                        <Lock className="w-4 h-4 text-indigo-400" />
+                        <span>Clôturer</span>
+                      </button>
+                    )
+                  )}
 
-              <button
-                onClick={() => setShowForm(!showForm)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm"
-              >
-                {showForm ? <X size={15} /> : <Plus size={15} />}
-                <span>{showForm ? 'Fermer' : 'Nouvelle année'}</span>
-              </button>
+                  <button
+                    onClick={() => setShowForm(!showForm)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-sm"
+                  >
+                    {showForm ? <X size={15} /> : <Plus size={15} />}
+                    <span>{showForm ? 'Fermer' : 'Nouvelle année'}</span>
+                  </button>
+                </>
+              )}
             </div>
           </div> 
 

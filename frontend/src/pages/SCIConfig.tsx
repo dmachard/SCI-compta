@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Save, Check, Trash2 } from 'lucide-react';
-import { sciApi } from '../api';
-import type { SCI } from '../types';
+import { Save, Check, Trash2, ShieldAlert } from 'lucide-react';
+import { sciApi, authApi } from '../api';
+import type { SCI, User } from '../types';
 
 export default function SCIConfig() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [sci, setSci] = useState<SCI | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -25,10 +26,13 @@ export default function SCIConfig() {
   });
 
   useEffect(() => {
-    sciApi
-      .get()
-      .then((s) => {
+    Promise.all([
+      sciApi.get(),
+      authApi.me().catch(() => null),
+    ])
+      .then(([s, me]) => {
         setSci(s);
+        setCurrentUser(me);
         setForm({
           name: s.name,
           siren: s.siren,
@@ -44,7 +48,7 @@ export default function SCIConfig() {
           currency: s.currency,
         });
       })
-      .catch(() => { })
+      .catch((err) => console.error(err))
       .finally(() => setLoading(false));
   }, []);
 
@@ -89,7 +93,21 @@ export default function SCIConfig() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (currentUser && currentUser.role !== 'gerant') {
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center max-w-lg mx-auto space-y-4 shadow-sm my-8">
+        <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl w-fit mx-auto border border-amber-200">
+          <ShieldAlert size={32} />
+        </div>
+        <h2 className="text-xl font-extrabold text-slate-900">Accès restreint</h2>
+        <p className="text-sm text-slate-600">
+          La modification de la configuration de la SCI est réservée au gérant. Vous êtes actuellement connecté avec un compte associé (lecture seule).
+        </p>
       </div>
     );
   }
