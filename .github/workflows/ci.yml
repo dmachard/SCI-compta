@@ -29,3 +29,20 @@ jobs:
         SECRET_KEY: test-secret-key-for-ci
       run: |
         pytest backend/tests -v
+
+  test-frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: npm --prefix frontend ci
+
+    - name: Run Vitest
+      run: npm --prefix frontend test

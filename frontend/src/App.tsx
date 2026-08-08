@@ -17,6 +17,7 @@ import Tax2072 from './pages/Tax2072';
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [showSetup, setShowSetup] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,7 +35,9 @@ export default function App() {
         setUser(me);
       }
     } catch {
-      // not configured or not authenticated
+      // Si la vérification du statut échoue (ex: API injoignable ou première installation),
+      // on permet de basculer en mode configuration si besoin.
+      setConfigured(false);
     } finally {
       setLoading(false);
     }
@@ -58,14 +61,27 @@ export default function App() {
     );
   }
 
-  // Pas encore configuré → setup
-  if (configured === false) {
-    return <SetupPage onSetup={(token) => { setConfigured(true); handleLogin(token); }} />;
+  // Pas encore configuré ou bouton d'initialisation cliqué → setup
+  if (configured === false || showSetup) {
+    return (
+      <SetupPage
+        onSetup={(token) => {
+          setShowSetup(false);
+          setConfigured(true);
+          handleLogin(token);
+        }}
+      />
+    );
   }
 
   // Pas connecté → login
   if (!user) {
-    return <LoginPage onLogin={handleLogin} />;
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        onNavigateSetup={() => setShowSetup(true)}
+      />
+    );
   }
 
   return (

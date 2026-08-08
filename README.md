@@ -34,3 +34,17 @@ docker compose up -d
 3. Configurer la SCI (raison sociale, capital, etc.)
 4. Ajouter les associés
 5. Créer l'exercice comptable
+
+## Tests
+
+Toutes les séries de tests s'exécutent via Docker :
+
+### Tests Backend (Pytest)
+```bash
+docker compose -f docker-compose.dev.yml run --rm backend pytest tests -v
+```
+
+### Tests Frontend (Vitest)
+```bash
+docker compose -f docker-compose.dev.yml run --rm frontend npm test
+```

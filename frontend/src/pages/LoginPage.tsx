@@ -4,9 +4,10 @@ import logoUrl from '../assets/logo.svg';
 
 interface Props {
   onLogin: (token: string) => void;
+  onNavigateSetup?: () => void;
 }
 
-export default function LoginPage({ onLogin }: Props) {
+export default function LoginPage({ onLogin, onNavigateSetup }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -76,6 +77,18 @@ export default function LoginPage({ onLogin }: Props) {
           >
             {loading ? 'Connexion...' : 'Se connecter'}
           </button>
+
+          {onNavigateSetup && (
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={onNavigateSetup}
+                className="text-sm text-text-secondary hover:text-accent transition-colors underline"
+              >
+                Première connexion ? Configurer le compte gérant
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
