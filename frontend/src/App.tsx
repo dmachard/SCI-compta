@@ -80,7 +80,7 @@ export default function App() {
     return (
       <LoginPage
         onLogin={handleLogin}
-        onNavigateSetup={() => setShowSetup(true)}
+        onNavigateSetup={configured === false ? () => setShowSetup(true) : undefined}
       />
     );
   }

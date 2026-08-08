@@ -7,6 +7,7 @@ import type {
   CapitalRegister,
   CurrentAccountBalance,
   CurrentAccountMovement,
+  DocumentItem,
   FiscalYear,
   FiscalYearSummary,
   Tax2072Summary,
@@ -132,7 +133,7 @@ export const bankApi = {
     return api
       .post<ImportCSVResponse>('/bank/import-csv', formData, {
         params: accountId ? { account_id: accountId } : undefined,
-        headers: { 'Content-Type': 'multipart/form-bytes' },
+        headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((r) => r.data);
   },
@@ -169,7 +170,7 @@ export const documentsApi = {
       responseType: 'blob',
     });
     const blob = new Blob([response.data], {
-      type: response.headers['content-type'] || 'application/octet-stream',
+      type: String(response.headers['content-type'] || 'application/octet-stream'),
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

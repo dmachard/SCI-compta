@@ -13,7 +13,16 @@ describe('LoginPage Component', () => {
     expect(screen.getByRole('button', { name: /Se connecter/i })).toBeInTheDocument();
   });
 
-  it('renders initial setup link when onNavigateSetup is provided', () => {
+  it('does not render setup link when onNavigateSetup is not provided (app already configured)', () => {
+    const handleLogin = vi.fn();
+    render(<LoginPage onLogin={handleLogin} />);
+
+    expect(
+      screen.queryByRole('button', { name: /Première connexion \? Configurer le compte gérant/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders initial setup link when onNavigateSetup is provided (app not configured)', () => {
     const handleLogin = vi.fn();
     const handleNavigateSetup = vi.fn();
     render(<LoginPage onLogin={handleLogin} onNavigateSetup={handleNavigateSetup} />);
