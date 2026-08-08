@@ -13,8 +13,15 @@ from app.schemas import DocumentResponse, DocumentUpdateRequest
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
-UPLOAD_DIR = getattr(settings, "UPLOAD_DIR", "/app/uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+def get_upload_dir() -> str:
+    target_dir = getattr(settings, "UPLOAD_DIR", "uploads")
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        return target_dir
+    except OSError:
+        fallback = os.path.join(os.getcwd(), "uploads")
+        os.makedirs(fallback, exist_ok=True)
+        return fallback
 
 
 @router.get("", response_model=list[DocumentResponse])
@@ -55,7 +62,8 @@ async def upload_document(
 ):
     ext = os.path.splitext(file.filename or "")[1]
     saved_filename = f"{uuid.uuid4().hex}{ext}"
-    file_path = os.path.join(UPLOAD_DIR, saved_filename)
+    upload_dir = get_upload_dir()
+    file_path = os.path.join(upload_dir, saved_filename)
 
     content = await file.read()
     with open(file_path, "wb") as f:
