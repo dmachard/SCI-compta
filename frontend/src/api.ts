@@ -16,6 +16,11 @@ import type {
   SCI,
   TokenResponse,
   User,
+  BudgetItem,
+  BudgetSummary,
+  ExpenseCreateRequest,
+  FundCall,
+  FundCallCreateRequest,
 } from './types';
 
 const api = axios.create({ baseURL: '/api' });
@@ -183,5 +188,34 @@ export const documentsApi = {
   },
 };
 
+// ─── Budget & Appels de fonds ──────────────────────────────
+
+export const budgetApi = {
+  getYears: () => api.get<number[]>('/budget/years').then((r) => r.data),
+  getSummary: (year: number) => api.get<BudgetSummary>(`/budget/${year}`).then((r) => r.data),
+  createOrCopy: (year: number, data: { copy_from_year?: number }) =>
+    api.post<BudgetSummary>(`/budget/${year}`, data).then((r) => r.data),
+  createItem: (year: number, data: Partial<BudgetItem>) =>
+    api.post<BudgetItem>(`/budget/${year}/items`, data).then((r) => r.data),
+  updateItem: (itemId: number, data: Partial<BudgetItem>) =>
+    api.put<BudgetItem>(`/budget/items/${itemId}`, data).then((r) => r.data),
+  deleteItem: (itemId: number) =>
+    api.delete<{ message: string }>(`/budget/items/${itemId}`).then((r) => r.data),
+  createExpense: (data: ExpenseCreateRequest) =>
+    api.post<{ message: string; transaction_id: number }>('/budget/expenses', data).then((r) => r.data),
+  getFundCalls: (year: number) =>
+    api.get<FundCall[]>('/budget/fund-calls', { params: { year } }).then((r) => r.data),
+  createFundCall: (data: FundCallCreateRequest) =>
+    api.post<FundCall>('/budget/fund-calls', data).then((r) => r.data),
+  updateFundCallLine: (
+    callId: number,
+    lineId: number,
+    data: { is_paid?: boolean; amount_paid?: number; payment_date?: string | null; bank_transaction_id?: number | null }
+  ) => api.put<FundCall>(`/budget/fund-calls/${callId}/lines/${lineId}`, data).then((r) => r.data),
+  deleteFundCall: (callId: number) =>
+    api.delete<{ message: string }>(`/budget/fund-calls/${callId}`).then((r) => r.data),
+};
+
 export default api;
+
 

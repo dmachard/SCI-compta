@@ -238,7 +238,7 @@ def get_fiscal_year_tax_2072(
         raise HTTPException(404, "Exercice non trouvé")
 
     sci = db.query(SCI).first()
-    sci_name = sci.name if sci else "S.C.I. LA GUERMONDERIE"
+    sci_name = sci.name if sci else "SCI"
     sci_siren = sci.siren if sci else ""
 
     # Transactions validées de l'exercice

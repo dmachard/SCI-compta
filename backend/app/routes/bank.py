@@ -326,6 +326,10 @@ def reconcile_transaction(
     if req.associate_id is not None:
         tx.associate_id = req.associate_id if req.associate_id > 0 else None
 
+    # Mise à jour du poste budgétaire
+    if req.budget_item_id is not None:
+        tx.budget_item_id = req.budget_item_id if req.budget_item_id > 0 else None
+
     # Gérer la synchronisation avec le compte courant d'associé
     if tx.associate_id and tx.reconciliation_status == "rapprochee":
         # Vérifier si un mouvement CCA existe déjà pour cette transaction

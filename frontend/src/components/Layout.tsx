@@ -8,6 +8,7 @@ import {
   FileText,
   Settings,
   FolderArchive,
+  PiggyBank,
   LogOut,
   Menu,
   X,
@@ -18,6 +19,7 @@ import logoUrl from '../assets/logo.svg';
 const navItems = [
   { to: '/banque', label: 'Compte courant de la SCI', icon: CreditCard },
   { to: '/associes', label: 'Comptes courant associés', icon: Users },
+  { to: '/budget', label: 'Budget', icon: PiggyBank },
   { to: '/exercices', label: 'Bilan annuel', icon: CalendarRange },
   { to: '/documents', label: 'Documents', icon: FolderArchive },
   { to: '/sci', label: 'Configuration', icon: Settings },

@@ -515,7 +515,7 @@ export default function FiscalYears() {
             <div>
               <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-0.5">Société Civile Immobilière</span>
               <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight leading-none">
-                {sci?.name || 'S.C.I. LA GUERMONDERIE'}
+                {sci?.name || 'SCI'}
               </h1>
               {sci?.siren && <p className="text-[10px] text-slate-500 font-mono mt-1">SIREN : {sci.siren}</p>}
             </div>

@@ -316,6 +316,7 @@ class BankTransactionResponse(BaseModel):
     reconciliation_status: str
     notes: str
     imported_at: datetime
+    budget_item_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -327,6 +328,7 @@ class ReconcileRequest(BaseModel):
     third_party: str | None = None
     notes: str | None = None
     reconciliation_status: str | None = "rapprochee"
+    budget_item_id: int | None = None
 
 
 class ImportCSVResponse(BaseModel):
@@ -361,4 +363,132 @@ class DocumentUpdateRequest(BaseModel):
     supplier: str | None = None
     document_date: date | None = None
     notes: str | None = None
+
+
+# ─── Budget & Postes budgétaires ──────────────────────────────
+
+
+class BudgetItemCreate(BaseModel):
+    name: str
+    icon: str = "⚡"
+    supplier: str = ""
+    amount: float = 0.0
+    periodicity: str = "annuelle"  # annuelle | mensuelle | trimestrielle | ponctuelle
+
+
+class BudgetItemUpdate(BaseModel):
+    name: str | None = None
+    icon: str | None = None
+    supplier: str | None = None
+    amount: float | None = None
+    periodicity: str | None = None
+
+
+class BudgetItemResponse(BaseModel):
+    id: int
+    budget_id: int
+    name: str
+    icon: str
+    supplier: str
+    amount: float
+    periodicity: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class BudgetTableItemResponse(BaseModel):
+    id: int
+    name: str
+    icon: str
+    supplier: str
+    periodicity: str
+    forecast: float
+    real: float
+    variance: float
+    consumption_rate: float
+
+
+class BudgetSummaryResponse(BaseModel):
+    year: int
+    budget_id: int | None = None
+    total_forecast: float
+    total_real: float
+    total_variance: float
+    consumption_rate: float
+    items: list[BudgetTableItemResponse]
+
+
+class BudgetYearCreate(BaseModel):
+    copy_from_year: int | None = None
+
+
+class ExpenseCreate(BaseModel):
+    label: str
+    amount: float
+    date: date
+    budget_item_id: int
+    third_party: str = ""
+    notes: str = ""
+
+
+# ─── Appels de fonds ───────────────────────────────────────────
+
+
+class FundCallCreate(BaseModel):
+    year: int
+    call_number: str | None = None
+    call_date: date
+    due_date: date | None = None
+    purpose: str = "Financement des charges et dépenses courantes de la SCI"
+    selected_item_ids: list[int]
+
+
+class FundCallBudgetItemResponse(BaseModel):
+    id: int
+    budget_item_id: int
+    name: str
+    icon: str
+    amount: float
+
+    model_config = {"from_attributes": True}
+
+
+class FundCallLineResponse(BaseModel):
+    id: int
+    associate_id: int
+    associate_name: str
+    shares: int
+    quote_part: float
+    amount_due: float
+    amount_paid: float
+    is_paid: bool
+    payment_date: date | None = None
+    bank_transaction_id: int | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class FundCallResponse(BaseModel):
+    id: int
+    call_number: str
+    call_date: date
+    due_date: date | None
+    purpose: str
+    total_amount: float
+    amount_paid: float
+    amount_remaining: float
+    status: str  # en_attente | partiel | solde
+    budget_items: list[FundCallBudgetItemResponse]
+    lines: list[FundCallLineResponse]
+
+    model_config = {"from_attributes": True}
+
+
+class FundCallLineUpdate(BaseModel):
+    amount_paid: float | None = None
+    payment_date: date | None = None
+    is_paid: bool | None = None
+    bank_transaction_id: int | None = None
+
 
