@@ -39,6 +39,7 @@ class UserResponse(BaseModel):
 class SCIUpdate(BaseModel):
     name: str | None = None
     siren: str | None = None
+    siret: str | None = None
     rcs: str | None = None
     address: str | None = None
     creation_date: date | None = None
@@ -55,6 +56,7 @@ class SCIResponse(BaseModel):
     id: int
     name: str
     siren: str
+    siret: str = ""
     rcs: str
     address: str
     creation_date: date | None

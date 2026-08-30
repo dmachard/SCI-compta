@@ -102,7 +102,11 @@ Titulaire : ${sci?.name || 'SCI'}`;
                 {sci?.name || 'SCI'}
               </h1>
               {sci?.address && <p className="text-xs text-slate-500 mt-1">{sci.address}</p>}
-              {sci?.siren && <p className="text-[11px] text-slate-400 font-mono">SIREN : {sci.siren}</p>}
+              {sci?.siret ? (
+                <p className="text-[11px] text-slate-400 font-mono">SIRET : {sci.siret}</p>
+              ) : sci?.siren ? (
+                <p className="text-[11px] text-slate-400 font-mono">SIREN : {sci.siren}</p>
+              ) : null}
             </div>
             <div className="text-right">
               <div className="inline-block bg-slate-900 text-white text-xs font-black px-3 py-1.5 rounded-lg tracking-wider mb-2">
@@ -248,7 +252,11 @@ Titulaire : ${sci?.name || 'SCI'}`;
               {sci?.name || 'SCI'}
             </h1>
             {sci?.address && <p className="text-xs text-slate-600 mt-1">{sci.address}</p>}
-            {sci?.siren && <p className="text-[11px] text-slate-500 font-mono">SIREN : {sci.siren}</p>}
+            {sci?.siret ? (
+              <p className="text-[11px] text-slate-500 font-mono">SIRET : {sci.siret}</p>
+            ) : sci?.siren ? (
+              <p className="text-[11px] text-slate-500 font-mono">SIREN : {sci.siren}</p>
+            ) : null}
           </div>
           <div className="text-right">
             <div className="inline-block bg-slate-900 text-white text-xs font-black px-3 py-1.5 rounded-md tracking-wider mb-2">

@@ -20,6 +20,7 @@ export interface SCI {
   id: number;
   name: string;
   siren: string;
+  siret: string;
   rcs: string;
   address: string;
   creation_date: string | null;

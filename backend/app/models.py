@@ -41,6 +41,7 @@ class SCI(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     siren: Mapped[str] = mapped_column(String(20), default="")
+    siret: Mapped[str] = mapped_column(String(20), default="")
     rcs: Mapped[str] = mapped_column(String(100), default="")
     address: Mapped[str] = mapped_column(Text, default="")
     creation_date: Mapped[date | None] = mapped_column(Date)

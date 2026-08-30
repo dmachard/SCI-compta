@@ -13,6 +13,7 @@ export default function SCIConfig() {
   const [form, setForm] = useState({
     name: '',
     siren: '',
+    siret: '',
     rcs: '',
     address: '',
     creation_date: '',
@@ -36,6 +37,7 @@ export default function SCIConfig() {
         setForm({
           name: s.name,
           siren: s.siren,
+          siret: s.siret || '',
           rcs: s.rcs,
           address: s.address,
           creation_date: s.creation_date || '',
@@ -143,21 +145,32 @@ export default function SCIConfig() {
               />
             </div>
             <div>
-              <label className={labelClass}>SIREN</label>
-              <input
-                className={inputClass}
-                value={form.siren}
-                onChange={(e) => update('siren', e.target.value)}
-                placeholder="123 456 789"
-              />
-            </div>
-            <div>
               <label className={labelClass}>Date de création</label>
               <input
                 type="date"
                 className={inputClass}
                 value={form.creation_date}
                 onChange={(e) => update('creation_date', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>SIREN (9 chiffres)</label>
+              <input
+                className={inputClass}
+                value={form.siren}
+                onChange={(e) => update('siren', e.target.value)}
+                placeholder="123 456 789"
+                maxLength={20}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>SIRET (14 chiffres)</label>
+              <input
+                className={inputClass}
+                value={form.siret}
+                onChange={(e) => update('siret', e.target.value)}
+                placeholder="123 456 789 00012"
+                maxLength={20}
               />
             </div>
             <div className="md:col-span-2">

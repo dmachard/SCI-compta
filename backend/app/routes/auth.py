@@ -16,7 +16,7 @@ def setup(req: SetupRequest, db: Session = Depends(get_db)):
         raise HTTPException(400, "L'application est déjà configurée")
 
     # Créer une SCI vide (on a retiré RCS côté front mais la colonne existe en DB)
-    sci = SCI(name="", siren="", rcs="", address="")
+    sci = SCI(name="", siren="", siret="", rcs="", address="")
     db.add(sci)
     db.commit()
 
