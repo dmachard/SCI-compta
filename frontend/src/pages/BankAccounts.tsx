@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X } from 'lucide-react';
-import { bankApi, associatesApi, authApi } from '../api';
-import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User } from '../types';
+import { bankApi, associatesApi, authApi, budgetApi } from '../api';
+import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User, BudgetTableItem } from '../types';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -29,6 +29,7 @@ export default function BankAccounts() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [associates, setAssociates] = useState<Associate[]>([]);
+  const [budgetItems, setBudgetItems] = useState<BudgetTableItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filtres
@@ -45,6 +46,7 @@ export default function BankAccounts() {
   const [reconcileForm, setReconcileForm] = useState({
     category: '',
     associate_id: 0,
+    budget_item_id: 0,
     movement_type: 'versement',
     third_party: '',
     notes: '',
@@ -57,12 +59,16 @@ export default function BankAccounts() {
       bankApi.getTransactions({ status: statusFilter || undefined, search: searchFilter || undefined }),
       associatesApi.list(),
       authApi.me().catch(() => null),
+      budgetApi.getSummary(new Date().getFullYear()).catch(() => null),
     ])
-      .then(([accs, txs, assocs, me]) => {
+      .then(([accs, txs, assocs, me, bSummary]) => {
         setAccounts(accs);
         setTransactions(txs);
         setAssociates(assocs);
         setCurrentUser(me);
+        if (bSummary) {
+          setBudgetItems(bSummary.items);
+        }
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
@@ -108,6 +114,7 @@ export default function BankAccounts() {
     setReconcileForm({
       category: tx.category || (tx.associate_id ? "Compte courant d'associé" : ''),
       associate_id: tx.associate_id || 0,
+      budget_item_id: tx.budget_item_id || 0,
       movement_type: tx.movement_type || (tx.amount > 0 ? 'versement' : 'remboursement'),
       third_party: tx.third_party || '',
       notes: tx.notes || '',
@@ -122,6 +129,7 @@ export default function BankAccounts() {
       await bankApi.reconcileTransaction(reconcilingTx.id, {
         category: reconcileForm.category,
         associate_id: reconcileForm.associate_id > 0 ? reconcileForm.associate_id : null,
+        budget_item_id: reconcileForm.budget_item_id > 0 ? reconcileForm.budget_item_id : null,
         movement_type: reconcileForm.movement_type,
         third_party: reconcileForm.third_party,
         notes: reconcileForm.notes,
@@ -335,7 +343,13 @@ export default function BankAccounts() {
                               {associateMatch.first_name} {associateMatch.last_name}
                             </span>
                           )}
-                          {!tx.category && !associateMatch && (
+                          {tx.budget_item_id && (
+                            <span className="inline-flex items-center gap-1 text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[10px]">
+                              <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.icon || '⚡'}</span>
+                              <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.name || 'Poste budgétaire'}</span>
+                            </span>
+                          )}
+                          {!tx.category && !associateMatch && !tx.budget_item_id && (
                             <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-bold">
                               À traiter
                             </span>
@@ -481,6 +495,32 @@ export default function BankAccounts() {
                     {COMMON_CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Poste budgétaire optionnel */}
+              {budgetItems.length > 0 && reconcileForm.associate_id === 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Poste budgétaire (Optionnel)
+                  </label>
+                  <select
+                    value={reconcileForm.budget_item_id}
+                    onChange={(e) =>
+                      setReconcileForm((f) => ({
+                        ...f,
+                        budget_item_id: Number(e.target.value),
+                      }))
+                    }
+                    className="w-full bg-white text-slate-900 text-xs font-semibold rounded-xl px-3.5 py-2.5 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value={0}>-- Aucun poste budgétaire rattaché --</option>
+                    {budgetItems.map((it) => (
+                      <option key={it.id} value={it.id}>
+                        {it.icon} {it.name} ({fmt(it.forecast)})
                       </option>
                     ))}
                   </select>

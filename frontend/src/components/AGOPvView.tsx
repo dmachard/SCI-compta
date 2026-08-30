@@ -58,9 +58,9 @@ export default function AGOPvView({ sci, summary, bankBalance }: Props) {
 
   // Generer le texte brut du PV
   const pvText = `PROCÈS-VERBAL DE L’ASSEMBLÉE GÉNÉRALE ORDINAIRE ANNUELLE
-SCI ${sci?.name || 'LA GUERMONDERIE'}
+${sci?.name || 'SCI'}
 
-Le ${agDateFormatted}, les associés de la SCI ${sci?.name || 'LA GUERMONDERIE'} se sont réunis en assemblée générale ordinaire.
+Le ${agDateFormatted}, les associés de la ${sci?.name || 'SCI'} se sont réunis en assemblée générale ordinaire.
 
 Ordre du jour :
 1. Présentation de la situation financière de la SCI pour l'exercice clos le ${yearEndDateFormatted}

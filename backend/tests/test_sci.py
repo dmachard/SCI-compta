@@ -20,12 +20,14 @@ def test_sci_crud_and_reset(client):
     update_res = client.put("/api/sci", headers=headers, json={
         "name": "SCI Immobilere Curie",
         "siren": "123456789",
+        "siret": "12345678900012",
         "address": "10 Rue de la Paix, 75002 Paris"
     })
     assert update_res.status_code == 200
     updated_data = update_res.json()
     assert updated_data["name"] == "SCI Immobilere Curie"
     assert updated_data["siren"] == "123456789"
+    assert updated_data["siret"] == "12345678900012"
 
     # 5. Reset database
     reset_res = client.delete("/api/sci/reset", headers=headers)

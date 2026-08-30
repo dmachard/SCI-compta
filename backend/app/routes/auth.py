@@ -16,7 +16,7 @@ def setup(req: SetupRequest, db: Session = Depends(get_db)):
         raise HTTPException(400, "L'application est déjà configurée")
 
     # Créer une SCI vide (on a retiré RCS côté front mais la colonne existe en DB)
-    sci = SCI(name="", siren="", rcs="", address="")
+    sci = SCI(name="", siren="", siret="", rcs="", address="")
     db.add(sci)
     db.commit()
 
@@ -49,7 +49,7 @@ def setup(req: SetupRequest, db: Session = Depends(get_db)):
     db.commit()
     
     db.refresh(user)
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=create_access_token(user.id, remember_me=True))
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -57,7 +57,7 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == req.email).first()
     if not user or not verify_password(req.password, user.hashed_password):
         raise HTTPException(401, "Email ou mot de passe incorrect")
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=create_access_token(user.id, remember_me=req.remember_me))
 
 
 @router.get("/me", response_model=UserResponse)

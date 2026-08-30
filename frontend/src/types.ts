@@ -20,6 +20,7 @@ export interface SCI {
   id: number;
   name: string;
   siren: string;
+  siret: string;
   rcs: string;
   address: string;
   creation_date: string | null;
@@ -201,6 +202,7 @@ export interface BankTransaction {
   reconciliation_status: 'a_traiter' | 'categorisee' | 'rapprochee' | 'verifiee';
   notes: string;
   imported_at: string;
+  budget_item_id?: number | null;
 }
 
 export interface ReconcileRequest {
@@ -210,6 +212,7 @@ export interface ReconcileRequest {
   third_party?: string;
   notes?: string;
   reconciliation_status?: string;
+  budget_item_id?: number | null;
 }
 
 export interface ImportCSVResponse {
@@ -235,4 +238,95 @@ export interface DocumentItem {
   notes: string;
   created_at: string;
 }
+
+// ─── Budget & Postes ───────────────────────────────────────
+
+export interface BudgetItem {
+  id: number;
+  budget_id: number;
+  name: string;
+  icon: string;
+  supplier: string;
+  amount: number;
+  periodicity: 'annuelle' | 'mensuelle' | 'trimestrielle' | 'ponctuelle' | string;
+  created_at: string;
+}
+
+export interface BudgetTableItem {
+  id: number;
+  name: string;
+  icon: string;
+  supplier: string;
+  periodicity: string;
+  forecast: number;
+  real: number;
+  variance: number;
+  consumption_rate: number;
+}
+
+export interface BudgetSummary {
+  year: number;
+  budget_id: number | null;
+  total_forecast: number;
+  total_real: number;
+  total_variance: number;
+  consumption_rate: number;
+  items: BudgetTableItem[];
+}
+
+export interface ExpenseCreateRequest {
+  label: string;
+  amount: number;
+  date: string;
+  budget_item_id: number;
+  third_party?: string;
+  notes?: string;
+}
+
+// ─── Appels de fonds ───────────────────────────────────────
+
+export interface FundCallBudgetItem {
+  id: number;
+  budget_item_id: number;
+  name: string;
+  icon: string;
+  amount: number;
+}
+
+export interface FundCallLine {
+  id: number;
+  associate_id: number;
+  associate_name: string;
+  shares: number;
+  quote_part: number;
+  amount_due: number;
+  amount_paid: number;
+  is_paid: boolean;
+  payment_date: string | null;
+  bank_transaction_id: number | null;
+}
+
+export interface FundCall {
+  id: number;
+  call_number: string;
+  call_date: string;
+  due_date: string | null;
+  purpose: string;
+  total_amount: number;
+  amount_paid: number;
+  amount_remaining: number;
+  status: 'en_attente' | 'partiel' | 'solde';
+  budget_items: FundCallBudgetItem[];
+  lines: FundCallLine[];
+}
+
+export interface FundCallCreateRequest {
+  year: number;
+  call_number?: string;
+  call_date: string;
+  due_date?: string;
+  purpose: string;
+  selected_item_ids: number[];
+}
+
 

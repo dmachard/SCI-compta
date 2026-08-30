@@ -41,6 +41,7 @@ class SCI(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(255), default="")
     siren: Mapped[str] = mapped_column(String(20), default="")
+    siret: Mapped[str] = mapped_column(String(20), default="")
     rcs: Mapped[str] = mapped_column(String(100), default="")
     address: Mapped[str] = mapped_column(Text, default="")
     creation_date: Mapped[date | None] = mapped_column(Date)
@@ -162,6 +163,8 @@ class BankTransaction(Base):
         back_populates="transactions"
     )
     documents: Mapped[list["Document"]] = relationship(back_populates="transaction")
+    budget_item_id: Mapped[int | None] = mapped_column(ForeignKey("budget_items.id"))
+    budget_item: Mapped["BudgetItem | None"] = relationship(back_populates="transactions")
 
 
 # ─── Compte courant d'associé ──────────────────────────────────
@@ -196,7 +199,8 @@ class FundCall(Base):
     __tablename__ = "fund_calls"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    fiscal_year_id: Mapped[int] = mapped_column(ForeignKey("fiscal_years.id"))
+    fiscal_year_id: Mapped[int | None] = mapped_column(ForeignKey("fiscal_years.id"), nullable=True)
+    call_number: Mapped[str] = mapped_column(String(50), default="")
     call_date: Mapped[date] = mapped_column(Date)
     purpose: Mapped[str] = mapped_column(Text)
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2))
@@ -205,15 +209,20 @@ class FundCall(Base):
         String(20), default="en_attente"
     )  # en_attente | partiel | solde
 
-    fiscal_year: Mapped["FiscalYear"] = relationship(back_populates="fund_calls")
-    lines: Mapped[list["FundCallLine"]] = relationship(back_populates="fund_call")
+    fiscal_year: Mapped["FiscalYear | None"] = relationship(back_populates="fund_calls")
+    lines: Mapped[list["FundCallLine"]] = relationship(
+        back_populates="fund_call", cascade="all, delete-orphan"
+    )
+    budget_items: Mapped[list["FundCallBudgetItem"]] = relationship(
+        back_populates="fund_call", cascade="all, delete-orphan"
+    )
 
 
 class FundCallLine(Base):
     __tablename__ = "fund_call_lines"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    fund_call_id: Mapped[int] = mapped_column(ForeignKey("fund_calls.id"))
+    fund_call_id: Mapped[int] = mapped_column(ForeignKey("fund_calls.id", ondelete="CASCADE"))
     associate_id: Mapped[int] = mapped_column(ForeignKey("associates.id"))
     amount_due: Mapped[float] = mapped_column(Numeric(12, 2))
     amount_paid: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
@@ -224,6 +233,18 @@ class FundCallLine(Base):
 
     fund_call: Mapped["FundCall"] = relationship(back_populates="lines")
     associate: Mapped["Associate"] = relationship(back_populates="fund_call_lines")
+
+
+class FundCallBudgetItem(Base):
+    __tablename__ = "fund_call_budget_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fund_call_id: Mapped[int] = mapped_column(ForeignKey("fund_calls.id", ondelete="CASCADE"))
+    budget_item_id: Mapped[int] = mapped_column(ForeignKey("budget_items.id"))
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+
+    fund_call: Mapped["FundCall"] = relationship(back_populates="budget_items")
+    budget_item: Mapped["BudgetItem"] = relationship(back_populates="fund_call_items")
 
 
 # ─── Plan comptable ────────────────────────────────────────────
@@ -328,3 +349,39 @@ class Property(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
 
     sci: Mapped["SCI"] = relationship(back_populates="properties")
+
+
+# ─── Budget & Postes budgétaires ──────────────────────────────
+
+
+class Budget(Base):
+    __tablename__ = "budgets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sci_id: Mapped[int] = mapped_column(ForeignKey("sci.id"))
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    items: Mapped[list["BudgetItem"]] = relationship(
+        back_populates="budget", cascade="all, delete-orphan"
+    )
+
+
+class BudgetItem(Base):
+    __tablename__ = "budget_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    budget_id: Mapped[int] = mapped_column(ForeignKey("budgets.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(255))
+    icon: Mapped[str] = mapped_column(String(50), default="⚡")
+    supplier: Mapped[str] = mapped_column(String(255), default="")
+    amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    periodicity: Mapped[str] = mapped_column(
+        String(50), default="annuelle"
+    )  # annuelle | mensuelle | trimestrielle | ponctuelle
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    budget: Mapped["Budget"] = relationship(back_populates="items")
+    transactions: Mapped[list["BankTransaction"]] = relationship(back_populates="budget_item")
+    fund_call_items: Mapped[list["FundCallBudgetItem"]] = relationship(back_populates="budget_item")
+

@@ -14,6 +14,7 @@ import FiscalYears from './pages/FiscalYears';
 import BankAccounts from './pages/BankAccounts';
 import DocumentsPage from './pages/Documents';
 import Tax2072 from './pages/Tax2072';
+import BudgetPage from './pages/Budget';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -97,6 +98,7 @@ export default function App() {
         <Route path="/capital" element={<Capital />} />
         <Route path="/banque" element={<BankAccounts />} />
         <Route path="/comptes-courants" element={<CurrentAccounts />} />
+        <Route path="/budget" element={<BudgetPage />} />
         <Route path="/exercices" element={<FiscalYears />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

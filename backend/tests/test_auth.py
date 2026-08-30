@@ -29,7 +29,8 @@ def test_auth_setup_flow(client):
     # 4. Login with correct credentials
     login_res = client.post("/api/auth/login", json={
         "email": "jean.dupont@example.com",
-        "password": "SecretPassword123!"
+        "password": "SecretPassword123!",
+        "remember_me": True
     })
     assert login_res.status_code == 200
     assert "access_token" in login_res.json()

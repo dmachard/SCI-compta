@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routes import auth, bank, sci, associates, capital, current_accounts, fiscal_years, documents
+from app.routes import auth, bank, sci, associates, capital, current_accounts, fiscal_years, documents, budget
 
 app = FastAPI(
     title="SCI-Compta",
@@ -26,6 +26,7 @@ app.include_router(capital.router)
 app.include_router(current_accounts.router)
 app.include_router(fiscal_years.router)
 app.include_router(documents.router)
+app.include_router(budget.router)
 
 
 @app.get("/api/health")
