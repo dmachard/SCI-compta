@@ -52,7 +52,7 @@ export const authApi = {
   status: () => api.get<{ configured: boolean }>('/auth/status').then((r) => r.data),
   setup: (data: { email: string; password: string; full_name: string }) =>
     api.post<TokenResponse>('/auth/setup', data).then((r) => r.data),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; remember_me?: boolean }) =>
     api.post<TokenResponse>('/auth/login', data).then((r) => r.data),
   me: () => api.get<User>('/auth/me').then((r) => r.data),
 };

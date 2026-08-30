@@ -23,10 +23,20 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(user_id: int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+def create_access_token(
+    user_id: int,
+    remember_me: bool = False,
+    expires_delta: timedelta | None = None,
+) -> str:
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    elif remember_me:
+        # Se souvenir de moi : session longue de 1 an
+        expire = datetime.now(timezone.utc) + timedelta(days=365)
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     return jwt.encode(
         {"sub": str(user_id), "exp": expire},
         settings.SECRET_KEY,

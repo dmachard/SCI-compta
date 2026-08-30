@@ -10,6 +10,7 @@ interface Props {
 export default function LoginPage({ onLogin, onNavigateSetup }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -18,7 +19,7 @@ export default function LoginPage({ onLogin, onNavigateSetup }: Props) {
     setError('');
     setLoading(true);
     try {
-      const res = await authApi.login({ email, password });
+      const res = await authApi.login({ email, password, remember_me: rememberMe });
       onLogin(res.access_token);
     } catch {
       setError('Email ou mot de passe incorrect');
@@ -68,6 +69,18 @@ export default function LoginPage({ onLogin, onNavigateSetup }: Props) {
               className="w-full px-4 py-3 bg-bg-input border border-border rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
               placeholder="••••••••"
             />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-border text-accent focus:ring-accent accent-indigo-600 cursor-pointer"
+              />
+              <span className="text-sm font-medium text-text-secondary">Se souvenir de moi</span>
+            </label>
           </div>
 
           <button
