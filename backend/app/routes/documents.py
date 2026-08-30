@@ -25,12 +25,14 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
 def get_upload_dir() -> str:
-    target_dir = getattr(settings, "UPLOAD_DIR", "uploads")
+    raw_dir = getattr(settings, "UPLOAD_DIR", "uploads")
+    if not os.path.isabs(raw_dir):
+        raw_dir = os.path.abspath(raw_dir)
     try:
-        os.makedirs(target_dir, exist_ok=True)
-        return target_dir
+        os.makedirs(raw_dir, exist_ok=True)
+        return raw_dir
     except OSError:
-        fallback = os.path.join(os.getcwd(), "uploads")
+        fallback = os.path.abspath("uploads")
         os.makedirs(fallback, exist_ok=True)
         return fallback
 
@@ -89,15 +91,40 @@ def auto_detect_category(filename: str) -> tuple[str, str, int | None]:
 
 def find_actual_file_path(doc_path: str, filename: str) -> str | None:
     """Trouve le fichier physique même s'il a été déplacé ou est relatif."""
-    if os.path.isabs(doc_path) and os.path.exists(doc_path):
-        return doc_path
+    if not doc_path:
+        return None
+
+    # 1. Vérification directe du chemin (tel quel, relatif ou absolu)
+    if os.path.exists(doc_path):
+        return os.path.abspath(doc_path)
+
     upload_dir = get_upload_dir()
-    candidate = os.path.join(upload_dir, os.path.basename(doc_path))
-    if os.path.exists(candidate):
-        return candidate
-    candidate_file = os.path.join(upload_dir, filename)
-    if os.path.exists(candidate_file):
-        return candidate_file
+
+    # 2. Si doc_path est relatif à upload_dir
+    candidate_rel = os.path.join(upload_dir, doc_path)
+    if os.path.exists(candidate_rel):
+        return candidate_rel
+
+    # 3. Candidat direct dans upload_dir avec le nom du fichier sauvegardé
+    base_name = os.path.basename(doc_path)
+    candidate_base = os.path.join(upload_dir, base_name)
+    if os.path.exists(candidate_base):
+        return candidate_base
+
+    # 4. Candidat direct dans upload_dir avec le nom de fichier original
+    if filename:
+        candidate_orig = os.path.join(upload_dir, filename)
+        if os.path.exists(candidate_orig):
+            return candidate_orig
+
+    # 5. Recherche récursive dans upload_dir
+    if os.path.exists(upload_dir):
+        for root, _, files in os.walk(upload_dir):
+            if base_name and base_name in files:
+                return os.path.join(root, base_name)
+            if filename and filename in files:
+                return os.path.join(root, filename)
+
     return None
 
 
@@ -257,7 +284,7 @@ async def upload_document(
     os.makedirs(target_dir, exist_ok=True)
 
     saved_filename = f"{uuid.uuid4().hex[:8]}_{clean_filename}"
-    file_path = os.path.join(target_dir, saved_filename)
+    file_path = os.path.abspath(os.path.join(target_dir, saved_filename))
 
     content = await file.read()
     with open(file_path, "wb") as f:
