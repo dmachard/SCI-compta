@@ -19,7 +19,7 @@ import logoUrl from '../assets/logo.svg';
 import InstallPwaPrompt from './InstallPwaPrompt';
 
 const navItems = [
-  { to: '/banque', label: 'Compte courant de la SCI', icon: CreditCard },
+  { to: '/banque', label: 'Compte courant', icon: CreditCard },
   { to: '/associes', label: 'Comptes courant associés', icon: Users },
   { to: '/budget', label: 'Budget', icon: PiggyBank },
   { to: '/exercices', label: 'Bilan annuel', icon: CalendarRange },

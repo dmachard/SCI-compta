@@ -188,7 +188,7 @@ export default function BankAccounts() {
               <span className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
                 <CreditCard className="w-5 h-5" />
               </span>
-              <h1 className="text-2xl font-extrabold text-slate-900">Compte courant de la SCI</h1>
+              <h1 className="text-2xl font-extrabold text-slate-900">Compte courant</h1>
             </div>
             
             {/* Solde & Compteur intégré */}
