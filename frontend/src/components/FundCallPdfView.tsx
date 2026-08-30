@@ -45,13 +45,7 @@ ${fundCall.budget_items.map((it) => `• ${it.name} : ${fmt(it.amount)}`).join('
 TOTAL À FINANCER : ${fmt(fundCall.total_amount)}
 
 Répartition des associés :
-${fundCall.lines.map((l) => `• ${l.associate_name} (${l.shares} parts - ${l.quote_part} %) : ${fmt(l.amount_due)}`).join('\n')}
-──────────────────────────────
-Coordonnées bancaires pour le virement :
-Banque : ${bankAccount?.bank_name || 'Banque de la SCI'}
-IBAN : ${bankAccount?.iban || 'Non renseigné'}
-BIC : ${bankAccount?.bic || 'Non renseigné'}
-Titulaire : ${sci?.name || 'SCI'}`;
+${fundCall.lines.map((l) => `• ${l.associate_name} (${l.shares} parts - ${l.quote_part} %) : ${fmt(l.amount_due)}`).join('\n')}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(plainText);
@@ -195,23 +189,6 @@ Titulaire : ${sci?.name || 'SCI'}`;
               </table>
             </div>
           </div>
-
-          {/* Coordonnées bancaires */}
-          <div className="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4 flex flex-col sm:flex-row justify-between gap-4">
-            <div>
-              <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wide mb-1">
-                Coordonnées bancaires pour virement
-              </h4>
-              <p className="text-xs text-indigo-700">
-                Merci d'indiquer la référence <span className="font-mono font-bold text-indigo-950">{fundCall.call_number}</span> dans le libellé de votre virement.
-              </p>
-            </div>
-            <div className="font-mono text-xs text-indigo-950 space-y-0.5 sm:text-right">
-              <p><span className="text-indigo-600 font-sans font-bold">Banque :</span> {bankAccount?.bank_name || 'Banque SCI'}</p>
-              <p><span className="text-indigo-600 font-sans font-bold">IBAN :</span> {bankAccount?.iban || 'FR76 ...'}</p>
-              <p><span className="text-indigo-600 font-sans font-bold">BIC :</span> {bankAccount?.bic || '...'}</p>
-            </div>
-          </div>
         </div>
 
         {/* Pied modal écran */}
@@ -328,18 +305,6 @@ Titulaire : ${sci?.name || 'SCI'}`;
               ))}
             </tbody>
           </table>
-        </div>
-
-        <div className="border border-slate-300 rounded-lg p-3 bg-slate-50 flex justify-between items-center text-xs">
-          <div>
-            <p className="font-bold text-slate-900">Coordonnées bancaires pour virement :</p>
-            <p className="text-slate-600 mt-0.5">Libellé à indiquer : <span className="font-mono font-bold text-slate-900">{fundCall.call_number}</span></p>
-          </div>
-          <div className="font-mono text-right text-xs">
-            <p><span className="font-sans font-medium text-slate-600">Banque :</span> {bankAccount?.bank_name || 'Banque SCI'}</p>
-            <p><span className="font-sans font-medium text-slate-600">IBAN :</span> {bankAccount?.iban || '...'}</p>
-            <p><span className="font-sans font-medium text-slate-600">BIC :</span> {bankAccount?.bic || '...'}</p>
-          </div>
         </div>
 
         <div className="pt-6 flex justify-between items-end text-xs text-slate-500">
