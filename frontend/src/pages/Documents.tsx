@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FolderArchive,
-  Upload,
-  Search,
   FileText,
   Download,
   Trash2,
@@ -11,47 +8,124 @@ import {
   FileImage,
   File,
   UploadCloud,
-  LayoutList,
-  Grid,
-  Pencil,
+  FolderOpen,
+  Archive,
+  Calendar,
+  Zap,
+  Droplets,
+  Wifi,
+  Shield,
+  Receipt,
+  Landmark,
+  FileCheck,
+  Scale,
+  Coins,
+  Loader2,
+  FolderArchive,
+  Tag,
+  PlusCircle,
 } from 'lucide-react';
-import { documentsApi, authApi } from '../api';
-import type { DocumentItem, User } from '../types';
+import { documentsApi, authApi, sciApi } from '../api';
+import type { DocumentItem, DocumentCategoryItem, User, SCI } from '../types';
+
+export function cleanCategory(cat: string | null | undefined): string {
+  if (!cat) return 'Autres';
+  const clean = cat.replace(/^\d+\s*-\s*/, '').trim();
+  if (['Autres factures', 'Autre', 'Attestations & Actes', 'Rapports & Diagnostics', 'Baux & Contrats', ''].includes(clean)) {
+    return 'Autres';
+  }
+  return clean;
+}
+
+export function autoDetectFromFilename(fileName: string, availableCategories: string[] = []): {
+  year: number;
+  category: string;
+} {
+  const fn = fileName.toLowerCase();
+  const yearMatch = fn.match(/\b(202\d)\b/);
+  const detectedYear = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
+
+  // Détection par correspondance directe avec les catégories existantes
+  for (const cat of availableCategories) {
+    const catLower = cat.toLowerCase();
+    if (catLower !== 'autres' && fn.includes(catLower)) {
+      return { year: detectedYear, category: cat };
+    }
+  }
+
+  // Mots-clés courants en français pour le classement automatique
+  const keywordMap: Record<string, string[]> = {
+    'EDF': ['edf', 'electricite', 'électricité', 'engie', 'totalenergies'],
+    'Eau': ['eau', 'veolia', 'suez', 'saur'],
+    'Fibre': ['fibre', 'orange', 'free', 'sfr', 'bouygues', 'internet'],
+    'Assurance': ['assurance', 'assur', 'axa', 'allianz', 'macif', 'maif', 'matmut', 'generali', 'pno'],
+    'Impôts / Taxe foncière': ['taxe', 'impot', 'impôt', 'foncier', 'fonciere', 'foncière', 'cfe'],
+    'Banque': ['banque', 'releve', 'relevé', 'agios', 'frais bancaires'],
+    'Statuts & Kbis': ['kbis', 'k-bis', 'extrait', 'statut', 'statuts'],
+    "PV d'AG": ["pv d'ag", 'pv ag', 'proces verbal', 'procès-verbal', 'assemblee', 'assemblée'],
+    'Appels de fonds': ['appel de fond', 'appel de fonds', 'appel_de_fond'],
+  };
+
+  for (const [targetCat, keywords] of Object.entries(keywordMap)) {
+    if (availableCategories.includes(targetCat) && keywords.some((k) => fn.includes(k))) {
+      return { year: detectedYear, category: targetCat };
+    }
+  }
+
+  return { year: detectedYear, category: 'Autres' };
+}
 
 export default function DocumentsPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [sciInfo, setSciInfo] = useState<SCI | null>(null);
   const [allDocuments, setAllDocuments] = useState<DocumentItem[]>([]);
+  const [categories, setCategories] = useState<DocumentCategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('Tous');
-  const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [editingDoc, setEditingDoc] = useState<DocumentItem | null>(null);
 
-  // Drag & drop state
-  const [isPageDragging, setIsPageDragging] = useState(false);
-  const [isModalDragging, setIsModalDragging] = useState(false);
+  // Filtres horizontaux : Année sélectionnée + Tag sélectionné
+  const [selectedYear, setSelectedYear] = useState<number | 'ALL'>(new Date().getFullYear());
+  const [selectedSubfolder, setSelectedSubfolder] = useState<string | null>(null);
 
-  // Upload Form State
-  const [file, setFile] = useState<File | null>(null);
-  const [category, setCategory] = useState('');
-  const [supplier, setSupplier] = useState('');
-  const [documentDate, setDocumentDate] = useState('');
-  const [notes, setNotes] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [savingEdit, setSavingEdit] = useState(false);
+  // Années personnalisées mémorisées
+  const [customYears, setCustomYears] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('sci_custom_years');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showAddYearModal, setShowAddYearModal] = useState(false);
+  const [newYearInput, setNewYearInput] = useState<number>(new Date().getFullYear() - 1);
+
+  // Nouveau Tag dynamique
+  const [showAddTagModal, setShowAddTagModal] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
+  const [savingTag, setSavingTag] = useState(false);
+
+  // Upload direct
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [directUploading, setDirectUploading] = useState(false);
+  const [directUploadCount, setDirectUploadCount] = useState<number | null>(null);
+  const [isHoveringDropZone, setIsHoveringDropZone] = useState(false);
+
+  // Téléchargements
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
-  const [error, setError] = useState('');
+  const [exportingZip, setExportingZip] = useState(false);
 
   function loadData() {
     setLoading(true);
     Promise.all([
       documentsApi.list(),
+      documentsApi.getCategories().catch(() => []),
       authApi.me().catch(() => null),
+      sciApi.get().catch(() => null),
     ])
-      .then(([docs, me]) => {
+      .then(([docs, cats, me, sci]) => {
         setAllDocuments(docs);
+        setCategories(cats);
         setCurrentUser(me);
+        setSciInfo(sci);
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
@@ -62,128 +136,184 @@ export default function DocumentsPage() {
   }, []);
 
   const isManager = currentUser?.role === 'gerant';
+  const sciName = sciInfo?.name?.trim() || 'SCI LA GUERMONDERIE';
 
-  // Extraire dynamiquement les catégories uniques créées à la main
-  const uniqueCategories = [
-    'Tous',
-    ...Array.from(
-      new Set(allDocuments.map((d) => d.category.trim()).filter(Boolean))
-    ),
-  ];
-
-  // Filtrage côté client pour réactivité instantanée
-  const filteredDocuments = allDocuments.filter((doc) => {
-    const matchesCategory =
-      selectedCategory === 'Tous' || doc.category.trim() === selectedCategory;
-    const searchLower = search.toLowerCase();
-    const matchesSearch =
-      !search ||
-      doc.original_filename.toLowerCase().includes(searchLower) ||
-      doc.supplier.toLowerCase().includes(searchLower) ||
-      doc.notes.toLowerCase().includes(searchLower) ||
-      doc.category.toLowerCase().includes(searchLower);
-
-    return matchesCategory && matchesSearch;
-  });
-
-  // Handlers pour le Glisser-Déposer sur toute la page
-  function handlePageDragOver(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isManager && !isPageDragging) {
-      setIsPageDragging(true);
+  // Liste ordonnée de tous les noms de catégories disponibles
+  const categoryNames = useMemo(() => {
+    const names = categories.map((c) => c.name);
+    // Assurer que les catégories présentes sur les documents sont bien dans la liste
+    allDocuments.forEach((doc) => {
+      const c = cleanCategory(doc.category);
+      if (c && !names.includes(c)) {
+        names.push(c);
+      }
+    });
+    if (!names.includes('Autres')) {
+      names.push('Autres');
     }
+    return names;
+  }, [categories, allDocuments]);
+
+  // Années disponibles
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<number>([new Date().getFullYear(), ...customYears]);
+    allDocuments.forEach((doc) => {
+      const y = doc.folder_year || (doc.document_date ? new Date(doc.document_date).getFullYear() : null);
+      if (y) yearsSet.add(y);
+    });
+    return Array.from(yearsSet).sort((a, b) => b - a);
+  }, [allDocuments, customYears]);
+
+  useEffect(() => {
+    if (selectedYear !== 'ALL' && availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+      setSelectedYear(availableYears[0]);
+    }
+  }, [availableYears, selectedYear]);
+
+  function handleAddYear(yearToAdd: number) {
+    if (!yearToAdd || isNaN(yearToAdd) || yearToAdd < 1990 || yearToAdd > 2100) return;
+    if (!customYears.includes(yearToAdd)) {
+      const updated = [...customYears, yearToAdd].sort((a, b) => b - a);
+      setCustomYears(updated);
+      try {
+        localStorage.setItem('sci_custom_years', JSON.stringify(updated));
+      } catch {}
+    }
+    setSelectedYear(yearToAdd);
+    setSelectedSubfolder(null);
+    setShowAddYearModal(false);
   }
 
-  function handlePageDragLeave(e: React.DragEvent) {
+  async function handleAddTag(e: React.FormEvent) {
     e.preventDefault();
-    e.stopPropagation();
-    if (e.relatedTarget === null) {
-      setIsPageDragging(false);
-    }
-  }
+    const clean = newTagInput.trim();
+    if (!clean) return;
 
-  function handlePageDrop(e: React.DragEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsPageDragging(false);
-    if (!isManager) return;
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const droppedFile = e.dataTransfer.files[0];
-      setFile(droppedFile);
-      setError('');
-      setShowUploadModal(true);
-    }
-  }
-
-  async function handleUpload(e: React.FormEvent) {
-    e.preventDefault();
-    if (!file) {
-      setError('Veuillez sélectionner un fichier');
-      return;
-    }
-
-    setUploading(true);
-    setError('');
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('category', category.trim() || 'Autre');
-    formData.append('supplier', supplier);
-    if (documentDate) formData.append('document_date', documentDate);
-    formData.append('notes', notes);
-
+    setSavingTag(true);
     try {
-      await documentsApi.upload(formData);
-      setShowUploadModal(false);
-      setFile(null);
-      setCategory('');
-      setSupplier('');
-      setDocumentDate('');
-      setNotes('');
-      loadData();
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Erreur lors de l'envoi du document");
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  function openEditModal(doc: DocumentItem) {
-    setEditingDoc(doc);
-    setCategory(doc.category || '');
-    setSupplier(doc.supplier || '');
-    setDocumentDate(doc.document_date || '');
-    setNotes(doc.notes || '');
-    setError('');
-  }
-
-  async function handleUpdate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingDoc) return;
-
-    setSavingEdit(true);
-    setError('');
-
-    try {
-      await documentsApi.update(editingDoc.id, {
-        category: category.trim() || 'Autre',
-        supplier: supplier,
-        document_date: documentDate || null,
-        notes: notes,
+      const created = await documentsApi.createCategory(clean);
+      setCategories((prev) => {
+        if (prev.some((c) => c.name.toLowerCase() === created.name.toLowerCase())) {
+          return prev;
+        }
+        return [...prev, created];
       });
-      setEditingDoc(null);
-      setCategory('');
-      setSupplier('');
-      setDocumentDate('');
-      setNotes('');
+      setSelectedSubfolder(created.name);
+      setShowAddTagModal(false);
+      setNewTagInput('');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Erreur lors de la création du tag');
+    } finally {
+      setSavingTag(false);
+    }
+  }
+
+  async function handleDeleteCategory(catName: string) {
+    if (catName === 'Autres') return;
+    const catItem = categories.find((c) => c.name === catName);
+    if (!catItem) return;
+
+    const countUsing = allDocuments.filter((d) => cleanCategory(d.category) === catName).length;
+    const message =
+      countUsing > 0
+        ? `Le tag « ${catName} » est utilisé par ${countUsing} document(s). Si vous le supprimez, ils seront reclassés sous « Autres ». Confirmer ?`
+        : `Voulez-vous supprimer le tag « ${catName} » ?`;
+
+    if (!confirm(message)) return;
+
+    try {
+      await documentsApi.deleteCategory(catItem.id);
+      if (selectedSubfolder === catName) {
+        setSelectedSubfolder(null);
+      }
       loadData();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Erreur lors de la modification');
-    } finally {
-      setSavingEdit(false);
+      alert(err.response?.data?.detail || 'Erreur lors de la suppression du tag');
     }
+  }
+
+  // Compteurs par année et tag
+  const counts = useMemo(() => {
+    const byYear: Record<number, number> = {};
+    const byYearSubfolder: Record<string, number> = {};
+
+    availableYears.forEach((y) => {
+      byYear[y] = 0;
+      categoryNames.forEach((sub) => {
+        byYearSubfolder[`${y}_${sub}`] = 0;
+      });
+    });
+
+    allDocuments.forEach((doc) => {
+      const y =
+        doc.folder_year ||
+        (doc.document_date
+          ? new Date(doc.document_date).getFullYear()
+          : selectedYear !== 'ALL'
+          ? selectedYear
+          : new Date().getFullYear());
+      byYear[y] = (byYear[y] || 0) + 1;
+      const cat = cleanCategory(doc.category);
+      const key = `${y}_${cat}`;
+      byYearSubfolder[key] = (byYearSubfolder[key] || 0) + 1;
+    });
+
+    return {
+      all: allDocuments.length,
+      byYear,
+      byYearSubfolder,
+    };
+  }, [allDocuments, availableYears, categoryNames, selectedYear]);
+
+  // Documents filtrés
+  const filteredDocuments = useMemo(() => {
+    return allDocuments.filter((doc) => {
+      if (selectedYear !== 'ALL') {
+        const y = doc.folder_year || (doc.document_date ? new Date(doc.document_date).getFullYear() : null);
+        if (y && y !== selectedYear) return false;
+      }
+      if (selectedSubfolder) {
+        const cat = cleanCategory(doc.category);
+        if (cat !== selectedSubfolder) return false;
+      }
+      return true;
+    });
+  }, [allDocuments, selectedYear, selectedSubfolder]);
+
+  // Libellé de la sélection courante pour la zone de dépôt
+  const currentSelectionLabel = useMemo(() => {
+    const yearLabel = selectedYear === 'ALL' ? 'Toutes les années' : String(selectedYear);
+    return selectedSubfolder ? `${yearLabel} › ${selectedSubfolder}` : yearLabel;
+  }, [selectedYear, selectedSubfolder]);
+
+  // ─── UPLOAD DIRECT SANS FENÊTRE INTERMÉDIAIRE ─────────────
+  async function handleDirectUpload(files: FileList | File[]) {
+    if (!files || files.length === 0) return;
+    setDirectUploading(true);
+    setDirectUploadCount(files.length);
+
+    const targetYear = selectedYear === 'ALL' ? new Date().getFullYear() : selectedYear;
+
+    for (let i = 0; i < files.length; i++) {
+      const currentFile = files[i];
+      const auto = autoDetectFromFilename(currentFile.name, categoryNames);
+
+      const formData = new FormData();
+      formData.append('file', currentFile);
+      formData.append('folder_year', String(targetYear));
+      formData.append('category', selectedSubfolder || auto.category || 'Autres');
+
+      try {
+        await documentsApi.upload(formData);
+      } catch (err: any) {
+        console.error('Erreur upload direct:', err);
+        alert(`Erreur lors de l'ajout de ${currentFile.name}: ` + (err.response?.data?.detail || err.message));
+      }
+    }
+
+    setDirectUploading(false);
+    setDirectUploadCount(null);
+    loadData();
   }
 
   async function handleDownload(doc: DocumentItem) {
@@ -191,9 +321,32 @@ export default function DocumentsPage() {
     try {
       await documentsApi.downloadBlob(doc.id, doc.original_filename);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Erreur lors du téléchargement du fichier');
+      alert(err.response?.data?.detail || 'Erreur lors du téléchargement');
     } finally {
       setDownloadingId(null);
+    }
+  }
+
+  async function handleExportZip() {
+    setExportingZip(true);
+    try {
+      const params: any = {};
+      let fallbackName = `${sciName}_Documents.zip`;
+
+      if (selectedYear !== 'ALL') {
+        params.folder_year = selectedYear;
+        fallbackName = `Documents_${selectedYear}_${sciName.replace(/\s+/g, '_')}.zip`;
+        if (selectedSubfolder) {
+          params.category = selectedSubfolder;
+          fallbackName = `${selectedYear}_${selectedSubfolder}_${sciName.replace(/\s+/g, '_')}.zip`;
+        }
+      }
+
+      await documentsApi.exportZip(params, fallbackName);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erreur lors de l'export ZIP");
+    } finally {
+      setExportingZip(false);
     }
   }
 
@@ -209,7 +362,7 @@ export default function DocumentsPage() {
 
   function getFileIcon(filename: string) {
     const ext = filename.split('.').pop()?.toLowerCase();
-    if (ext === 'pdf') return <FileText className="w-5 h-5 text-red-500" />;
+    if (ext === 'pdf') return <FileText className="w-5 h-5 text-rose-500" />;
     if (['jpg', 'jpeg', 'png', 'webp', 'svg'].includes(ext || ''))
       return <FileImage className="w-5 h-5 text-blue-500" />;
     if (['csv', 'xlsx', 'xls'].includes(ext || ''))
@@ -217,497 +370,433 @@ export default function DocumentsPage() {
     return <File className="w-5 h-5 text-slate-400" />;
   }
 
+  function getSubfolderIcon(name: string) {
+    if (name === 'Banque') return <Landmark size={14} className="text-amber-600" />;
+    if (name === 'EDF') return <Zap size={14} className="text-yellow-500" />;
+    if (name === 'Eau') return <Droplets size={14} className="text-blue-500" />;
+    if (name === 'Fibre') return <Wifi size={14} className="text-orange-500" />;
+    if (name === 'Assurance') return <Shield size={14} className="text-indigo-500" />;
+    if (name.includes('Impôts')) return <Receipt size={14} className="text-red-500" />;
+    if (name.includes('Kbis') || name.includes('Statuts')) return <Scale size={14} className="text-purple-600" />;
+    if (name.includes('PV')) return <FileCheck size={14} className="text-teal-600" />;
+    if (name.includes('Appels')) return <Coins size={14} className="text-blue-600" />;
+    return <Tag size={13} className="text-slate-400" />;
+  }
+
   return (
-    <div
-      onDragOver={handlePageDragOver}
-      onDragLeave={handlePageDragLeave}
-      onDrop={handlePageDrop}
-      className="space-y-6 animate-fade-in relative min-h-[500px]"
-    >
-      {/* Overlay visuel de glisser-déposer global */}
-      {isPageDragging && (
-        <div className="fixed inset-0 bg-indigo-900/60 z-50 backdrop-blur-xs flex items-center justify-center p-8 pointer-events-none">
-          <div className="bg-white rounded-3xl p-10 max-w-md w-full text-center space-y-4 border-2 border-indigo-400 shadow-2xl animate-bounce">
-            <div className="w-16 h-16 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mx-auto">
-              <UploadCloud size={36} />
+    <div className="space-y-4 animate-fade-in relative min-h-[600px]">
+      {/* Input de fichier caché pour le clic sur la zone de dépôt */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files && e.target.files.length > 0) {
+            handleDirectUpload(e.target.files);
+            e.target.value = '';
+          }
+        }}
+      />
+
+      {/* En-tête de page épuré */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+            <FolderArchive className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">Documents</h1>
+            <p className="text-xs text-slate-500 font-medium mt-0.5">
+              Classement et archivage des pièces justificatives de la SCI
+            </p>
+          </div>
+        </div>
+
+        {filteredDocuments.length > 0 && (
+          <button
+            onClick={handleExportZip}
+            disabled={exportingZip}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-all disabled:opacity-50 self-start md:self-auto"
+            title="Télécharger la sélection en ZIP"
+          >
+            <Archive size={14} />
+            <span>{exportingZip ? 'Génération...' : 'Télécharger en ZIP'}</span>
+          </button>
+        )}
+      </div>
+
+      {/* BARRE HORIZONTALE DE SÉLECTION : ANNÉE & FLAGS / TAGS DYNAMIQUES */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+        {/* Ligne 1 : Année (Tags directs clairs + Bouton + Année sans doublon) */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mr-1">
+              <Calendar size={14} className="text-indigo-600" />
+              Année :
+            </span>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => {
+                  setSelectedYear('ALL');
+                  setSelectedSubfolder(null);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
+                  selectedYear === 'ALL'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>Toutes</span>
+                <span
+                  className={`text-[10px] px-1.5 rounded-full ${
+                    selectedYear === 'ALL' ? 'bg-white/20 text-white' : 'bg-white text-slate-700 font-bold'
+                  }`}
+                >
+                  {counts.all}
+                </span>
+              </button>
+
+              {availableYears.map((y) => (
+                <button
+                  key={y}
+                  onClick={() => {
+                    setSelectedYear(y);
+                    setSelectedSubfolder(null);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 ${
+                    selectedYear === y
+                      ? 'bg-indigo-600 text-white shadow-2xs'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{y}</span>
+                  <span
+                    className={`text-[10px] px-1.5 rounded-full ${
+                      selectedYear === y ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700 font-bold'
+                    }`}
+                  >
+                    {counts.byYear[y] || 0}
+                  </span>
+                </button>
+              ))}
+
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewYearInput(new Date().getFullYear() - 1);
+                    setShowAddYearModal(true);
+                  }}
+                  className="flex items-center gap-1 text-xs font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors border border-indigo-100"
+                  title="Ajouter une nouvelle année"
+                >
+                  <span>+ Année</span>
+                </button>
+              )}
             </div>
-            <div>
-              <h3 className="text-xl font-extrabold text-slate-900">
-                Déposez votre document ici
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Le formulaire d'envoi s'ouvrira automatiquement
+          </div>
+
+          <div className="text-xs font-bold text-slate-500">
+            {filteredDocuments.length} document{filteredDocuments.length > 1 ? 's' : ''}
+          </div>
+        </div>
+
+        {/* Ligne 2 : FLAGS / TAGS 100% Dynamiques avec flex-wrap (AUCUNE scrollbar, AUCUN tag en dur) */}
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <button
+            onClick={() => setSelectedSubfolder(null)}
+            className={`px-3 py-1.5 rounded-xl font-extrabold transition-all flex items-center gap-1.5 ${
+              selectedSubfolder === null
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>Tous les tags</span>
+            <span
+              className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                selectedSubfolder === null ? 'bg-white/20 text-white' : 'bg-white text-slate-700 font-bold'
+              }`}
+            >
+              {selectedYear === 'ALL' ? counts.all : counts.byYear[selectedYear] || 0}
+            </span>
+          </button>
+
+          {categoryNames.map((sub) => {
+            const isSelected = selectedSubfolder === sub;
+            const subCount =
+              selectedYear === 'ALL'
+                ? allDocuments.filter((d) => cleanCategory(d.category) === sub).length
+                : counts.byYearSubfolder[`${selectedYear}_${sub}`] || 0;
+
+            return (
+              <div
+                key={sub}
+                onClick={() => setSelectedSubfolder(sub)}
+                className={`group px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1.5 cursor-pointer select-none ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80'
+                }`}
+              >
+                {getSubfolderIcon(sub)}
+                <span>{sub}</span>
+                <span
+                  className={`text-[10px] px-1.5 rounded-full ${
+                    isSelected
+                      ? 'bg-white/20 text-white'
+                      : subCount > 0
+                      ? 'bg-slate-200 text-slate-800 font-extrabold'
+                      : 'text-slate-400'
+                  }`}
+                >
+                  {subCount}
+                </span>
+
+                {/* Croix de suppression proprement intégrée à l'intérieur du tag */}
+                {isManager && sub !== 'Autres' && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteCategory(sub);
+                    }}
+                    className={`opacity-0 group-hover:opacity-100 p-0.5 rounded-full transition-opacity ${
+                      isSelected
+                        ? 'text-white/70 hover:text-white hover:bg-white/20'
+                        : 'text-slate-400 hover:text-rose-600 hover:bg-slate-200'
+                    }`}
+                    title={`Supprimer le tag « ${sub} »`}
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+
+          {/* Bouton + Tag pour ajouter dynamiquement n'importe quel tag */}
+          {isManager && (
+            <button
+              type="button"
+              onClick={() => {
+                setNewTagInput('');
+                setShowAddTagModal(true);
+              }}
+              className="flex items-center gap-1 text-xs font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors border border-indigo-100"
+              title="Créer un nouveau tag (ex: Travaux, Notaire, Syndic...)"
+            >
+              <PlusCircle size={13} />
+              <span>+ Tag</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ZONE DE GLISSER-DÉPOSER DIRECTE */}
+      {isManager && (
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsHoveringDropZone(true);
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsHoveringDropZone(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setIsHoveringDropZone(false);
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              handleDirectUpload(e.dataTransfer.files);
+            }
+          }}
+          onClick={() => {
+            if (!directUploading) fileInputRef.current?.click();
+          }}
+          className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all flex items-center justify-center gap-3.5 ${
+            isHoveringDropZone
+              ? 'border-indigo-600 bg-indigo-50 scale-[1.01]'
+              : 'border-slate-300 hover:border-indigo-400 bg-slate-50/70 hover:bg-indigo-50/20'
+          }`}
+        >
+          <div
+            className={`p-2 rounded-xl transition-all ${
+              directUploading
+                ? 'bg-indigo-600 text-white animate-spin'
+                : 'bg-white shadow-2xs text-indigo-600'
+            }`}
+          >
+            {directUploading ? <Loader2 size={18} /> : <UploadCloud size={18} />}
+          </div>
+          <div className="text-left">
+            {directUploading ? (
+              <p className="text-xs font-extrabold text-indigo-700">
+                Ajout en cours de {directUploadCount} fichier{directUploadCount && directUploadCount > 1 ? 's' : ''}...
               </p>
-            </div>
+            ) : (
+              <>
+                <p className="text-xs font-extrabold text-slate-800">
+                  Glissez vos fichiers ici (ou cliquez pour parcourir)
+                </p>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  S'ajoute directement dans « {currentSelectionLabel} » sans aucune fenêtre
+                </p>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      {/* Bloc d'en-tête */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                <FolderArchive className="w-5 h-5" />
-              </span>
-              <h1 className="text-2xl font-extrabold text-slate-900">
-                Documents administratifs
-              </h1>
-            </div>
-            <p className="text-xs text-slate-500 font-medium mt-1">
-              Stockage & archivage des pièces officielles de la SCI (Baux, Statuts, Factures, Kbis...)
-            </p>
-          </div>
-
-          {isManager && (
-            <button
-              onClick={() => {
-                setError('');
-                setCategory('');
-                setSupplier('');
-                setDocumentDate('');
-                setNotes('');
-                setFile(null);
-                setShowUploadModal(true);
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md self-start md:self-auto"
-            >
-              <Upload size={16} />
-              <span>Ajouter un document</span>
-            </button>
-          )}
-        </div>
-
-        {/* Filtres par tags dynamiques, recherche & Sélecteur d'affichage */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
-            {uniqueCategories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                  selectedCategory === cat
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
-            <div className="relative flex-1 md:w-64">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, tag..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-              />
-            </div>
-
-            {/* Commutateur de mode d'affichage */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                  viewMode === 'table'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-                title="Affichage en liste / tableau (noms complets)"
-              >
-                <LayoutList size={16} />
-                <span className="hidden sm:inline">Tableau</span>
-              </button>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                  viewMode === 'grid'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-900'
-                }`}
-                title="Affichage en grille de cartes"
-              >
-                <Grid size={16} />
-                <span className="hidden sm:inline">Grille</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Liste des documents */}
+      {/* TABLEAU DES DOCUMENTS PLEINE LARGEUR (SANS MONTANT TTC, SANS ÉDITION) */}
       {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin w-8 h-8 border-2 border-indigo-600 border-t-transparent rounded-full" />
+        <div className="flex items-center justify-center h-48 bg-white rounded-2xl border border-slate-200">
+          <div className="animate-spin w-7 h-7 border-2 border-indigo-600 border-t-transparent rounded-full" />
         </div>
       ) : filteredDocuments.length > 0 ? (
-        viewMode === 'table' ? (
-          /* Mode Affichage Tableau (Sans aucun nom coupé) */
-          <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                    <th className="py-3.5 px-5">Document & Fichier</th>
-                    <th className="py-3.5 px-4">Tag / Catégorie</th>
-                    <th className="py-3.5 px-4">Notes</th>
-                    <th className="py-3.5 px-4">Date</th>
-                    <th className="py-3.5 px-5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
-                  {filteredDocuments.map((doc) => (
-                    <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors">
-                      {/* Document & Fichier */}
-                      <td className="py-4 px-5">
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl shrink-0 mt-0.5">
-                            {getFileIcon(doc.original_filename)}
-                          </div>
-                          <div className="space-y-0.5 min-w-0">
-                            <p className="font-extrabold text-slate-900 text-sm break-words">
-                              {doc.supplier || doc.original_filename}
-                            </p>
-                            <p className="font-mono text-[11px] text-slate-500 break-all">
-                              {doc.original_filename}
-                            </p>
-                          </div>
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  <th className="py-3 px-4">Document & Fichier</th>
+                  <th className="py-3 px-3">Année</th>
+                  <th className="py-3 px-3">Tag / Catégorie</th>
+                  <th className="py-3 px-3">Date</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {filteredDocuments.map((doc) => (
+                  <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl shrink-0 mt-0.5">
+                          {getFileIcon(doc.original_filename)}
                         </div>
-                      </td>
-
-                      {/* Tag / Catégorie */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        {doc.category ? (
-                          <span className="inline-block text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-lg font-extrabold border border-indigo-100">
-                            {doc.category}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">-</span>
-                        )}
-                      </td>
-
-                      {/* Notes */}
-                      <td className="py-4 px-4 text-slate-600 max-w-xs break-words">
-                        {doc.notes || <span className="text-slate-300 italic">Aucune note</span>}
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-4 px-4 whitespace-nowrap text-slate-500 font-medium">
-                        {doc.document_date
-                          ? new Date(doc.document_date).toLocaleDateString('fr-FR')
-                          : new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-4 px-5 text-right whitespace-nowrap space-x-2">
-                        <button
-                          onClick={() => handleDownload(doc)}
-                          disabled={downloadingId === doc.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                          title="Télécharger / Consulter"
-                        >
-                          <Download size={14} />
-                          <span>{downloadingId === doc.id ? 'Chargement...' : 'Consulter'}</span>
-                        </button>
-
-                        {isManager && (
-                          <>
-                            <button
-                              onClick={() => openEditModal(doc)}
-                              className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-block"
-                              title="Modifier le tag / document"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(doc.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-block"
-                              title="Supprimer"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          /* Mode Affichage Grille de cartes */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredDocuments.map((doc) => (
-              <div
-                key={doc.id}
-                className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between space-y-4 group"
-              >
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl shrink-0 mt-0.5">
-                        {getFileIcon(doc.original_filename)}
+                        <div className="space-y-0.5 min-w-0">
+                          <p className="font-extrabold text-slate-900 text-xs break-words">
+                            {doc.supplier || doc.original_filename}
+                          </p>
+                          <p className="font-mono text-[11px] text-slate-400 break-all">
+                            {doc.original_filename}
+                          </p>
+                          {doc.notes && (
+                            <p className="text-[11px] text-slate-500 italic mt-0.5">{doc.notes}</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h3 className="font-extrabold text-sm text-slate-900 break-words leading-snug">
-                          {doc.supplier || doc.original_filename}
-                        </h3>
-                        <p className="text-[11px] font-mono text-slate-500 break-all mt-0.5">
-                          {doc.original_filename}
-                        </p>
-                      </div>
-                    </div>
+                    </td>
 
-                    {doc.category && (
-                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-extrabold border border-indigo-100 shrink-0">
-                        {doc.category}
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      <span className="text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {doc.folder_year || (doc.document_date ? new Date(doc.document_date).getFullYear() : 2026)}
                       </span>
-                    )}
-                  </div>
+                    </td>
 
-                  {doc.notes && (
-                    <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 break-words">
-                      {doc.notes}
-                    </p>
-                  )}
-                </div>
+                    <td className="py-3.5 px-3 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold">
+                        {getSubfolderIcon(cleanCategory(doc.category))}
+                        <span>{cleanCategory(doc.category)}</span>
+                      </span>
+                    </td>
 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs">
-                  <span className="text-[11px] text-slate-400 font-medium">
-                    {doc.document_date
-                      ? new Date(doc.document_date).toLocaleDateString('fr-FR')
-                      : new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                  </span>
+                    <td className="py-3.5 px-3 whitespace-nowrap text-slate-500 font-medium">
+                      {doc.document_date
+                        ? new Date(doc.document_date).toLocaleDateString('fr-FR')
+                        : new Date(doc.created_at).toLocaleDateString('fr-FR')}
+                    </td>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleDownload(doc)}
-                      disabled={downloadingId === doc.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                      title="Télécharger / Consulter"
-                    >
-                      <Download size={14} />
-                      <span>{downloadingId === doc.id ? 'Chargement...' : 'Consulter'}</span>
-                    </button>
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
+                      <button
+                        onClick={() => handleDownload(doc)}
+                        disabled={downloadingId === doc.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                        title="Télécharger / Consulter"
+                      >
+                        <Download size={13} />
+                        <span>{downloadingId === doc.id ? '...' : 'Consulter'}</span>
+                      </button>
 
-                    {isManager && (
-                      <>
-                        <button
-                          onClick={() => openEditModal(doc)}
-                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          title="Modifier le tag / document"
-                        >
-                          <Pencil size={16} />
-                        </button>
+                      {isManager && (
                         <button
                           onClick={() => handleDelete(doc.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-block"
                           title="Supprimer"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )
+        </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-2xl p-16 text-center text-slate-500 shadow-sm space-y-3">
-          <FolderArchive className="w-10 h-10 text-slate-300 mx-auto" />
-          <p className="text-base font-extrabold text-slate-800">Aucun document trouvé</p>
-          <p className="text-xs text-slate-500">
-            {isManager
-              ? 'Glissez-déposez un fichier directement ici ou cliquez sur "Ajouter un document".'
-              : 'Aucun document n\'a encore été partagé.'}
+        <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center space-y-2 shadow-xs">
+          <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto">
+            <FolderOpen size={20} />
+          </div>
+          <p className="font-extrabold text-slate-700 text-xs">Aucun document trouvé</p>
+          <p className="text-[11px] text-slate-400">
+            Glissez un fichier dans la zone ci-dessus pour l'ajouter dans « {currentSelectionLabel} ».
           </p>
         </div>
       )}
 
-      {/* Modal d'Upload de document */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-fade-in border border-slate-200">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Upload className="w-5 h-5 text-indigo-600" />
-                <h3 className="font-extrabold text-slate-900 text-base">
-                  Déposer un document
-                </h3>
-              </div>
+      {/* Modale d'Ajout d'une nouvelle année */}
+      {showAddYearModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900">Ajouter une année</h3>
               <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                onClick={() => setShowAddYearModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X size={18} />
               </button>
             </div>
-
-            {error && (
-              <div className="bg-red-50 text-red-600 border border-red-200 rounded-xl p-3 text-xs font-semibold">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleUpload} className="space-y-4">
-              {/* Dropzone interactif */}
+            <p className="text-xs text-slate-500">Indiquez l'année à créer (ex: 2025, 2024).</p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddYear(newYearInput);
+              }}
+              className="space-y-4"
+            >
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Fichier (PDF, Image, Document...) *
-                </label>
-
-                <div
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsModalDragging(true);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    setIsModalDragging(false);
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsModalDragging(false);
-                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                      setFile(e.dataTransfer.files[0]);
-                    }
-                  }}
-                  onClick={() => document.getElementById('modal-file-input')?.click()}
-                  className={`relative border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all ${
-                    isModalDragging
-                      ? 'border-indigo-500 bg-indigo-50/80 scale-[1.01]'
-                      : file
-                      ? 'border-emerald-300 bg-emerald-50/40'
-                      : 'border-slate-300 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/30'
-                  }`}
-                >
-                  <input
-                    id="modal-file-input"
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  />
-
-                  {file ? (
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
-                          {getFileIcon(file.name)}
-                        </div>
-                        <div className="text-left min-w-0">
-                          <p className="text-xs font-extrabold text-slate-900 break-all">
-                            {file.name}
-                          </p>
-                          <p className="text-[10px] text-slate-500 font-mono">
-                            {(file.size / 1024).toFixed(1)} KB
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-xs text-indigo-600 font-bold hover:underline shrink-0">
-                        Changer
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
-                        <UploadCloud size={22} />
-                      </div>
-                      <div>
-                        <p className="text-xs font-extrabold text-slate-800">
-                          Glissez-déposez votre fichier ici
-                        </p>
-                        <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-                          ou cliquez pour parcourir vos dossiers
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Tag / Catégorie personnalisé
-                  </label>
-                  <input
-                    type="text"
-                    list="existing-tags"
-                    placeholder="ex: Baux, Statuts, Taxe 2026..."
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-bold focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <datalist id="existing-tags">
-                    {uniqueCategories
-                      .filter((c) => c !== 'Tous')
-                      .map((c) => (
-                        <option key={c} value={c} />
-                      ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Date du document
-                  </label>
-                  <input
-                    type="date"
-                    value={documentDate}
-                    onChange={(e) => setDocumentDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Titre / Libellé explicatif
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Année</label>
                 <input
-                  type="text"
-                  placeholder="ex: Bail d'habitation Appartement 1 - 2026"
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium"
+                  type="number"
+                  min={1990}
+                  max={2100}
+                  value={newYearInput}
+                  onChange={(e) => setNewYearInput(parseInt(e.target.value, 10))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900"
+                  autoFocus
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Notes & Commentaires
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Remarques complémentaires..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium resize-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
+                  onClick={() => setShowAddYearModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={uploading}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all disabled:opacity-50"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs"
                 >
-                  {uploading ? 'Envoi...' : 'Déposer le document'}
+                  Créer l'année
                 </button>
               </div>
             </form>
@@ -715,114 +804,49 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Modal d'Édition du Tag & informations d'un document */}
-      {editingDoc && (
-        <div className="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-fade-in border border-slate-200">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Pencil className="w-5 h-5 text-indigo-600" />
-                <h3 className="font-extrabold text-slate-900 text-base">
-                  Modifier le tag & les informations
-                </h3>
-              </div>
+      {/* Modale d'Ajout d'un nouveau Tag dynamique */}
+      {showAddTagModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900">Nouveau Tag / Dossier</h3>
               <button
-                onClick={() => setEditingDoc(null)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                onClick={() => setShowAddTagModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X size={18} />
               </button>
             </div>
-
-            {error && (
-              <div className="bg-red-50 text-red-600 border border-red-200 rounded-xl p-3 text-xs font-semibold">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleUpdate} className="space-y-4">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-                <p className="text-[11px] font-bold text-slate-500">Fichier associé :</p>
-                <p className="text-xs font-mono text-slate-900 break-all mt-0.5">
-                  {editingDoc.original_filename}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Tag / Catégorie personnalisé
-                  </label>
-                  <input
-                    type="text"
-                    list="existing-tags-edit"
-                    placeholder="ex: Baux, Statuts, Taxe 2026..."
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <datalist id="existing-tags-edit">
-                    {uniqueCategories
-                      .filter((c) => c !== 'Tous')
-                      .map((c) => (
-                        <option key={c} value={c} />
-                      ))}
-                  </datalist>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Date du document
-                  </label>
-                  <input
-                    type="date"
-                    value={documentDate}
-                    onChange={(e) => setDocumentDate(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 font-medium"
-                  />
-                </div>
-              </div>
-
+            <p className="text-xs text-slate-500">
+              Indiquez le nom du tag à créer (ex: <strong>Travaux</strong>, <strong>Notaire</strong>, <strong>Syndic</strong>...).
+            </p>
+            <form onSubmit={handleAddTag} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Titre / Libellé explicatif
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Nom du tag</label>
                 <input
                   type="text"
-                  placeholder="ex: Bail d'habitation Appartement 1 - 2026"
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium"
+                  value={newTagInput}
+                  onChange={(e) => setNewTagInput(e.target.value)}
+                  placeholder="ex: Travaux"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  autoFocus
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Notes & Commentaires
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Remarques complémentaires..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 font-medium resize-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setEditingDoc(null)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
+                  onClick={() => setShowAddTagModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
                 >
                   Annuler
                 </button>
                 <button
                   type="submit"
-                  disabled={savingEdit}
-                  className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-sm transition-all disabled:opacity-50"
+                  disabled={savingTag || !newTagInput.trim()}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-50"
                 >
-                  {savingEdit ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                  {savingTag ? 'Création...' : 'Créer le tag'}
                 </button>
               </div>
             </form>

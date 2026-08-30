@@ -7,6 +7,7 @@ import type {
   CapitalRegister,
   CurrentAccountBalance,
   CurrentAccountMovement,
+  DocumentCategoryItem,
   DocumentItem,
   FiscalYear,
   FiscalYearSummary,
@@ -153,8 +154,18 @@ export const bankApi = {
 // ─── Documents ─────────────────────────────────────────────
 
 export const documentsApi = {
-  list: (params?: { category?: string; search?: string }) =>
-    api.get<DocumentItem[]>('/documents', { params }).then((r) => r.data),
+  list: (params?: {
+    document_type?: string;
+    folder_year?: number;
+    category?: string;
+    search?: string;
+  }) => api.get<DocumentItem[]>('/documents', { params }).then((r) => r.data),
+  getCategories: () =>
+    api.get<DocumentCategoryItem[]>('/documents/categories').then((r) => r.data),
+  createCategory: (name: string) =>
+    api.post<DocumentCategoryItem>('/documents/categories', { name }).then((r) => r.data),
+  deleteCategory: (id: number) =>
+    api.delete<{ message: string }>(`/documents/categories/${id}`).then((r) => r.data),
   upload: (formData: FormData) =>
     api.post<DocumentItem>('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -164,9 +175,14 @@ export const documentsApi = {
   update: (
     id: number,
     data: {
+      document_type?: string;
+      folder_year?: number | null;
       category?: string;
       supplier?: string;
       document_date?: string | null;
+      amount_ht?: number | null;
+      tva?: number | null;
+      amount_ttc?: number | null;
       notes?: string;
     }
   ) => api.put<DocumentItem>(`/documents/${id}`, data).then((r) => r.data),
@@ -176,6 +192,38 @@ export const documentsApi = {
     });
     const blob = new Blob([response.data], {
       type: String(response.headers['content-type'] || 'application/octet-stream'),
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+  },
+  exportZip: async (
+    params?: {
+      document_type?: string;
+      folder_year?: number;
+      category?: string;
+    },
+    defaultFilename = 'Documents_SCI.zip'
+  ) => {
+    const response = await api.get('/documents/export-zip', {
+      params,
+      responseType: 'blob',
+    });
+    let filename = defaultFilename;
+    const disposition = response.headers['content-disposition'];
+    if (disposition && disposition.includes('filename=')) {
+      const match = disposition.match(/filename\*?=['"]?(?:UTF-\d['"]*)?([^;\r\n"']*)['"]?/i);
+      if (match && match[1]) {
+        filename = decodeURIComponent(match[1]);
+      }
+    }
+    const blob = new Blob([response.data], {
+      type: 'application/zip',
     });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');

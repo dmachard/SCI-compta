@@ -223,10 +223,16 @@ export interface ImportCSVResponse {
 
 // ─── Documents ─────────────────────────────────────────────
 
+export interface DocumentCategoryItem {
+  id: number;
+  name: string;
+}
+
 export interface DocumentItem {
   id: number;
   fiscal_year_id: number | null;
   document_type: string;
+  folder_year: number | null;
   original_filename: string;
   supplier: string;
   document_date: string | null;
