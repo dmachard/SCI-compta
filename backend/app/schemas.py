@@ -347,6 +347,7 @@ class DocumentResponse(BaseModel):
     id: int
     fiscal_year_id: int | None = None
     document_type: str
+    folder_year: int | None = None
     original_filename: str
     supplier: str
     document_date: date | None = None
@@ -362,9 +363,14 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentUpdateRequest(BaseModel):
+    document_type: str | None = None
+    folder_year: int | None = None
     category: str | None = None
     supplier: str | None = None
     document_date: date | None = None
+    amount_ht: float | None = None
+    tva: float | None = None
+    amount_ttc: float | None = None
     notes: str | None = None
 
 

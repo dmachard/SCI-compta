@@ -313,7 +313,8 @@ class Document(Base):
     fiscal_year_id: Mapped[int | None] = mapped_column(ForeignKey("fiscal_years.id"))
     document_type: Mapped[str] = mapped_column(
         String(50), default="facture"
-    )  # facture | justificatif
+    )  # facture | administratif
+    folder_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     file_path: Mapped[str] = mapped_column(String(500), default="")
     original_filename: Mapped[str] = mapped_column(String(255), default="")
     supplier: Mapped[str] = mapped_column(String(255), default="")
