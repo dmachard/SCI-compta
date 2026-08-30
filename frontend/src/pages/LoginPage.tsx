@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { authApi } from '../api';
-import logoUrl from '../assets/logo.svg';
+import { Building2 } from 'lucide-react';
 
 interface Props {
   onLogin: (token: string) => void;
@@ -32,9 +32,11 @@ export default function LoginPage({ onLogin, onNavigateSetup }: Props) {
     <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8 flex flex-col items-center">
-          <img src={logoUrl} alt="Gestion SCI Logo" className="w-20 h-20 object-contain mb-4" />
-          <h1 className="text-3xl font-bold text-text-primary">Gestion SCI</h1>
-          <p className="text-text-secondary mt-2">Connectez-vous pour accéder à la gestion de votre SCI</p>
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4 shadow-sm">
+            <Building2 className="w-7 h-7 stroke-[1.75]" />
+          </div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Gestion SCI</h1>
+          <p className="text-sm text-slate-500 mt-1.5">Comptabilité et gestion de patrimoine immobilier</p>
         </div>
 
         <form
