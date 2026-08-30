@@ -58,7 +58,6 @@ export default function BudgetPage() {
   const [primaryAccount, setPrimaryAccount] = useState<BankAccount | null>(null);
 
   // Modals
-  const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [showItemModal, setShowItemModal] = useState(false);
   const [editingItem, setEditingItem] = useState<BudgetItem | BudgetTableItem | null>(null);
   const [showFundCallModal, setShowFundCallModal] = useState(false);
@@ -67,14 +66,6 @@ export default function BudgetPage() {
   const [selectedFundCallDetail, setSelectedFundCallDetail] = useState<FundCall | null>(null);
 
   // Formulaires
-  const [expenseForm, setExpenseForm] = useState({
-    label: '',
-    amount: '',
-    date: new Date().toISOString().split('T')[0],
-    budget_item_id: 0,
-    third_party: '',
-    notes: '',
-  });
 
   const [itemForm, setItemForm] = useState({
     name: '',
@@ -152,37 +143,6 @@ export default function BudgetPage() {
   }
 
   const isManager = currentUser?.role === 'gerant';
-
-  // Actions Dépense
-  async function handleCreateExpense(e: React.FormEvent) {
-    e.preventDefault();
-    if (!expenseForm.budget_item_id || !expenseForm.amount) {
-      alert('Veuillez sélectionner un poste budgétaire et saisir un montant');
-      return;
-    }
-    try {
-      await budgetApi.createExpense({
-        label: expenseForm.label,
-        amount: parseFloat(expenseForm.amount),
-        date: expenseForm.date,
-        budget_item_id: Number(expenseForm.budget_item_id),
-        third_party: expenseForm.third_party,
-        notes: expenseForm.notes,
-      });
-      setShowExpenseModal(false);
-      setExpenseForm({
-        label: '',
-        amount: '',
-        date: new Date().toISOString().split('T')[0],
-        budget_item_id: 0,
-        third_party: '',
-        notes: '',
-      });
-      loadYearData(selectedYear);
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Erreur lors de la création de la dépense');
-    }
-  }
 
   // Actions Poste budgétaire
   async function handleSaveItem(e: React.FormEvent) {
@@ -384,19 +344,6 @@ export default function BudgetPage() {
             >
               <Calendar className="w-4 h-4 text-slate-500" />
               <span>Autre année / Copier</span>
-            </button>
-
-            <button
-              onClick={() => {
-                if (summary && summary.items.length > 0) {
-                  setExpenseForm((f) => ({ ...f, budget_item_id: summary.items[0].id }));
-                }
-                setShowExpenseModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nouvelle dépense</span>
             </button>
           </div>
         )}
@@ -986,111 +933,6 @@ export default function BudgetPage() {
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ─── MODAL : NOUVELLE DÉPENSE SUR POSTE BUDGÉTAIRE ────────────── */}
-      {showExpenseModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-2xs flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-extrabold text-slate-900 text-base">
-                Enregistrer une dépense
-              </h3>
-              <button
-                onClick={() => setShowExpenseModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateExpense} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Poste budgétaire *</label>
-                <select
-                  value={expenseForm.budget_item_id}
-                  onChange={(e) =>
-                    setExpenseForm({ ...expenseForm, budget_item_id: Number(e.target.value) })
-                  }
-                  required
-                  className="w-full bg-white text-slate-900 font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value={0}>-- Choisir un poste budgétaire --</option>
-                  {summary?.items.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.icon} {it.name} ({fmt(it.forecast)})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Libellé de la dépense *</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Facture EDF juillet"
-                  value={expenseForm.label}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, label: e.target.value })}
-                  required
-                  className="w-full bg-white text-slate-900 font-medium rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Montant (€) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="112.00"
-                    value={expenseForm.amount}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                    required
-                    className="w-full bg-white text-slate-900 font-mono font-bold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Date *</label>
-                  <input
-                    type="date"
-                    value={expenseForm.date}
-                    onChange={(e) => setExpenseForm({ ...expenseForm, date: e.target.value })}
-                    required
-                    className="w-full bg-white text-slate-900 font-medium rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Tiers / Fournisseur</label>
-                <input
-                  type="text"
-                  placeholder="Ex: EDF, Veolia..."
-                  value={expenseForm.third_party}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, third_party: e.target.value })}
-                  className="w-full bg-white text-slate-900 font-medium rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setShowExpenseModal(false)}
-                  className="px-4 py-2 font-bold text-slate-600 hover:text-slate-900"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-xs transition-all"
-                >
-                  Enregistrer
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 
