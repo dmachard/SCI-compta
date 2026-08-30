@@ -7,6 +7,7 @@ import type {
   CapitalRegister,
   CurrentAccountBalance,
   CurrentAccountMovement,
+  DocumentCategoryItem,
   DocumentItem,
   FiscalYear,
   FiscalYearSummary,
@@ -159,6 +160,12 @@ export const documentsApi = {
     category?: string;
     search?: string;
   }) => api.get<DocumentItem[]>('/documents', { params }).then((r) => r.data),
+  getCategories: () =>
+    api.get<DocumentCategoryItem[]>('/documents/categories').then((r) => r.data),
+  createCategory: (name: string) =>
+    api.post<DocumentCategoryItem>('/documents/categories', { name }).then((r) => r.data),
+  deleteCategory: (id: number) =>
+    api.delete<{ message: string }>(`/documents/categories/${id}`).then((r) => r.data),
   upload: (formData: FormData) =>
     api.post<DocumentItem>('/documents/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

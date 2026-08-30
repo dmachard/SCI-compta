@@ -343,6 +343,17 @@ class ImportCSVResponse(BaseModel):
 # ─── Documents ────────────────────────────────────────────────
 
 
+class DocumentCategoryCreate(BaseModel):
+    name: str
+
+
+class DocumentCategoryResponse(BaseModel):
+    id: int
+    name: str
+
+    model_config = {"from_attributes": True}
+
+
 class DocumentResponse(BaseModel):
     id: int
     fiscal_year_id: int | None = None

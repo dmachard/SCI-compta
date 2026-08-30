@@ -6,15 +6,20 @@ import zipfile
 from datetime import date
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_manager
 from app.config import settings
 from app.database import get_db
-from app.models import Document, SCI
-from app.schemas import DocumentResponse, DocumentUpdateRequest
+from app.models import Document, DocumentCategory, SCI
+from app.schemas import (
+    DocumentCategoryCreate,
+    DocumentCategoryResponse,
+    DocumentResponse,
+    DocumentUpdateRequest,
+)
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -37,9 +42,18 @@ def get_safe_sci_folder(db: Session) -> str:
     return safe or "SCI"
 
 
+def clean_category_name(cat: str | None) -> str:
+    if not cat:
+        return "Autres"
+    cleaned = re.sub(r'^\d+\s*-\s*', '', cat).strip()
+    if cleaned in ["Autres factures", "Autre", "Attestations & Actes", "Rapports & Diagnostics", "Baux & Contrats", ""]:
+        return "Autres"
+    return cleaned
+
+
 def auto_detect_category(filename: str) -> tuple[str, str, int | None]:
     """
-    Détecte automatiquement le type, la catégorie et éventuellement l'année
+    Détecte automatiquement le type, la catégorie (sans numéro) et éventuellement l'année
     à partir du nom du fichier pour faciliter le classement.
     """
     fn = filename.lower()
@@ -50,35 +64,27 @@ def auto_detect_category(filename: str) -> tuple[str, str, int | None]:
 
     # Factures courantes
     if any(k in fn for k in ["edf", "electricite", "électricité", "engie", "totalenergies"]):
-        return "facture", "02 - EDF", year
+        return "facture", "EDF", year
     if any(k in fn for k in ["eau", "veolia", "suez", "saur"]):
-        return "facture", "03 - Eau", year
+        return "facture", "Eau", year
     if any(k in fn for k in ["fibre", "orange", "free", "sfr", "bouygues", "internet"]):
-        return "facture", "04 - Fibre", year
+        return "facture", "Fibre", year
     if any(k in fn for k in ["assurance", "assur", "axa", "allianz", "macif", "maif", "matmut", "generali", "pno"]):
-        return "facture", "05 - Assurance", year
+        return "facture", "Assurance", year
     if any(k in fn for k in ["taxe", "impot", "impôt", "foncier", "fonciere", "foncière", "cfe"]):
-        return "facture", "06 - Impôts / Taxe foncière", year
+        return "facture", "Impôts / Taxe foncière", year
     if any(k in fn for k in ["banque", "releve", "relevé", "agios", "frais bancaires"]):
-        return "facture", "01 - Banque", year
+        return "facture", "Banque", year
 
-    # Pièces administratives & juridiques
-    if any(k in fn for k in ["kbis", "k-bis", "extrait"]):
-        return "administratif", "Statuts & Kbis", year
-    if any(k in fn for k in ["statut", "statuts"]):
+    # Pièces administratives
+    if any(k in fn for k in ["kbis", "k-bis", "extrait", "statut", "statuts"]):
         return "administratif", "Statuts & Kbis", year
     if any(k in fn for k in ["pv d'ag", "pv ag", "proces verbal", "procès-verbal", "assemblee", "assemblée"]):
         return "administratif", "PV d'AG", year
-    if any(k in fn for k in ["spanc", "diagnostic", "dpe", "amiante", "plomb", "assainissement", "rapport vente"]):
-        return "administratif", "Rapports & Diagnostics", year
     if any(k in fn for k in ["appel de fond", "appel de fonds", "appel_de_fond"]):
         return "administratif", "Appels de fonds", year
-    if any(k in fn for k in ["chiffre d affaires", "chiffre d'affaires", "attestation"]):
-        return "administratif", "Attestations & Actes", year
-    if any(k in fn for k in ["bail", "contrat"]):
-        return "administratif", "Baux & Contrats", year
 
-    return "facture", "07 - Autres factures", year
+    return "facture", "Autres", year
 
 
 def find_actual_file_path(doc_path: str, filename: str) -> str | None:
@@ -95,6 +101,66 @@ def find_actual_file_path(doc_path: str, filename: str) -> str | None:
     return None
 
 
+@router.get("/categories", response_model=list[DocumentCategoryResponse])
+def list_categories(
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    categories = db.query(DocumentCategory).order_by(DocumentCategory.id.asc()).all()
+    # Si un document a une catégorie non répertoriée, on l'ajoute dynamiquement
+    cat_names = {c.name for c in categories}
+    doc_categories = db.query(Document.category).distinct().all()
+    added = False
+    for (d_cat,) in doc_categories:
+        clean = clean_category_name(d_cat)
+        if clean and clean not in cat_names:
+            new_c = DocumentCategory(name=clean)
+            db.add(new_c)
+            cat_names.add(clean)
+            added = True
+    if added:
+        db.commit()
+        categories = db.query(DocumentCategory).order_by(DocumentCategory.id.asc()).all()
+    return categories
+
+
+@router.post("/categories", response_model=DocumentCategoryResponse)
+def create_category(
+    req: DocumentCategoryCreate,
+    db: Session = Depends(get_db),
+    _=Depends(require_manager),
+):
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(400, "Le nom de la catégorie ne peut pas être vide")
+    cleaned = clean_category_name(name)
+    existing = db.query(DocumentCategory).filter(DocumentCategory.name.ilike(cleaned)).first()
+    if existing:
+        return existing
+    new_cat = DocumentCategory(name=cleaned)
+    db.add(new_cat)
+    db.commit()
+    db.refresh(new_cat)
+    return new_cat
+
+
+@router.delete("/categories/{cat_id}")
+def delete_category(
+    cat_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(require_manager),
+):
+    cat = db.query(DocumentCategory).filter(DocumentCategory.id == cat_id).first()
+    if not cat:
+        raise HTTPException(404, "Catégorie introuvable")
+
+    # Mettre à jour les documents existants vers "Autres" pour ne pas les orphelins
+    db.query(Document).filter(Document.category == cat.name).update({"category": "Autres"})
+    db.delete(cat)
+    db.commit()
+    return {"message": "Catégorie supprimée"}
+
+
 @router.get("", response_model=list[DocumentResponse])
 def list_documents(
     document_type: str | None = None,
@@ -105,30 +171,29 @@ def list_documents(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    query = db.query(Document)
-
-    # Reclassement automatique transparent des documents qui étaient à l'origine classés sous 'Autre'
-    legacy_others = db.query(Document).filter(
-        (Document.category == "Autre") | (Document.category == "") | (Document.category.is_(None))
-    ).all()
-    if legacy_others:
-        modified = False
-        for doc in legacy_others:
-            dtype, cat, y = auto_detect_category(doc.original_filename)
-            doc.document_type = dtype
-            doc.category = cat
-            if not doc.folder_year and y:
-                doc.folder_year = y
+    # Migration & normalisation transparente : enlever les numéros 01, 02 et assigner l'année
+    all_docs = db.query(Document).all()
+    modified = False
+    for doc in all_docs:
+        if not doc.folder_year:
+            doc.folder_year = (doc.document_date.year if doc.document_date else (doc.created_at.year if doc.created_at else 2026))
             modified = True
-        if modified:
-            db.commit()
+        cleaned_cat = clean_category_name(doc.category)
+        if cleaned_cat != doc.category:
+            doc.category = cleaned_cat
+            modified = True
+    if modified:
+        db.commit()
+
+    query = db.query(Document)
 
     if document_type and document_type != "Tous":
         query = query.filter(Document.document_type == document_type)
     if folder_year:
         query = query.filter(Document.folder_year == folder_year)
     if category and category != "Toutes" and category != "Tous":
-        query = query.filter(Document.category == category)
+        clean_filter_cat = clean_category_name(category)
+        query = query.filter(Document.category == clean_filter_cat)
     if fiscal_year_id:
         query = query.filter(Document.fiscal_year_id == fiscal_year_id)
     if search:
@@ -161,11 +226,11 @@ async def upload_document(
     _=Depends(require_manager),
 ):
     clean_filename = file.filename or "fichier"
-    # Détection intelligente si les champs ne sont pas fournis
     suggested_type, suggested_cat, suggested_year = auto_detect_category(clean_filename)
 
     final_type = document_type or suggested_type or "facture"
-    final_cat = category.strip() if category else suggested_cat
+    raw_cat = category.strip() if category else suggested_cat
+    final_cat = clean_category_name(raw_cat)
 
     doc_date = None
     if document_date:
@@ -180,22 +245,17 @@ async def upload_document(
             final_year = doc_date.year
         elif suggested_year:
             final_year = suggested_year
-        elif final_type == "facture":
+        else:
             final_year = date.today().year
 
-    # Création du chemin d'arborescence physique
+    # Création du chemin d'arborescence physique simple : uploads/{SCI}/{YEAR}/{CATEGORY}
     upload_dir = get_upload_dir()
     sci_folder = get_safe_sci_folder(db)
-
-    if final_type == "facture":
-        subpath = os.path.join(sci_folder, str(final_year), final_cat or "07 - Autres factures")
-    else:
-        subpath = os.path.join(sci_folder, "Juridique & Administratif", final_cat or "Autres")
+    subpath = os.path.join(sci_folder, str(final_year), final_cat)
 
     target_dir = os.path.join(upload_dir, subpath)
     os.makedirs(target_dir, exist_ok=True)
 
-    ext = os.path.splitext(clean_filename)[1]
     saved_filename = f"{uuid.uuid4().hex[:8]}_{clean_filename}"
     file_path = os.path.join(target_dir, saved_filename)
 
@@ -240,7 +300,7 @@ def update_document(
     if req.folder_year is not None:
         doc.folder_year = req.folder_year
     if req.category is not None:
-        doc.category = req.category
+        doc.category = clean_category_name(req.category)
     if req.supplier is not None:
         doc.supplier = req.supplier
     if req.document_date is not None:
@@ -268,8 +328,7 @@ def export_documents_zip(
     _=Depends(get_current_user),
 ):
     """
-    Génère à la volée une archive ZIP contenant l'arborescence sélectionnée
-    (ex: toutes les factures 2026 avec les sous-dossiers 01 - Banque, 02 - EDF...).
+    Génère à la volée une archive ZIP contenant l'arborescence sélectionnée.
     """
     query = db.query(Document)
     if document_type and document_type != "Tous":
@@ -277,7 +336,8 @@ def export_documents_zip(
     if folder_year:
         query = query.filter(Document.folder_year == folder_year)
     if category and category != "Toutes" and category != "Tous":
-        query = query.filter(Document.category == category)
+        clean_cat = clean_category_name(category)
+        query = query.filter(Document.category == clean_cat)
 
     docs = query.all()
     if not docs:
@@ -295,19 +355,13 @@ def export_documents_zip(
             if not real_path or not os.path.exists(real_path):
                 continue
 
-            # Construction du chemin propre à l'intérieur du ZIP
-            if doc.document_type == "facture":
-                year_str = str(doc.folder_year or (doc.document_date.year if doc.document_date else "Factures"))
-                cat_str = doc.category or "07 - Autres factures"
-                rel_dir = os.path.join(year_str, cat_str)
-            else:
-                cat_str = doc.category or "Documents"
-                rel_dir = os.path.join("Juridique & Administratif", cat_str)
+            year_str = str(doc.folder_year or (doc.document_date.year if doc.document_date else 2026))
+            cat_str = clean_category_name(doc.category)
+            rel_dir = os.path.join(year_str, cat_str)
 
             file_base = doc.original_filename or f"doc_{doc.id}.pdf"
             entry_name = os.path.join(rel_dir, file_base)
 
-            # Éviter collisions de noms de fichiers identiques dans le même sous-dossier
             counter = 1
             name_part, ext_part = os.path.splitext(file_base)
             while entry_name in seen_paths:
@@ -319,11 +373,8 @@ def export_documents_zip(
 
     zip_buffer.seek(0)
 
-    # Détermination du nom de fichier de téléchargement
-    if folder_year and document_type == "facture":
-        zip_filename = f"Factures_{folder_year}_{safe_sci}.zip"
-    elif document_type == "administratif":
-        zip_filename = f"Documents_Juridiques_{safe_sci}.zip"
+    if folder_year:
+        zip_filename = f"Documents_{folder_year}_{safe_sci}.zip"
     else:
         zip_filename = f"Archive_Documents_{safe_sci}.zip"
 

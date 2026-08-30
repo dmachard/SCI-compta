@@ -334,6 +334,14 @@ class Document(Base):
     )
 
 
+class DocumentCategory(Base):
+    __tablename__ = "document_categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
 # ─── Bien immobilier ──────────────────────────────────────────
 
 

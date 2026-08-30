@@ -85,7 +85,7 @@ def test_documents_upload_download_permissions(client):
         data={
             "document_type": "facture",
             "folder_year": 2026,
-            "category": "02 - EDF",
+            "category": "EDF",
             "supplier": "EDF",
             "amount_ttc": 142.50,
         },
@@ -95,14 +95,37 @@ def test_documents_upload_download_permissions(client):
     inv_data = inv_res.json()
     assert inv_data["document_type"] == "facture"
     assert inv_data["folder_year"] == 2026
-    assert inv_data["category"] == "02 - EDF"
+    assert inv_data["category"] == "EDF"
 
     # 9. Test export-zip endpoint
     zip_res = client.get("/api/documents/export-zip?folder_year=2026", headers=gerant_headers)
     assert zip_res.status_code == 200
     assert zip_res.headers["content-type"] == "application/zip"
 
-    # 10. Gérant deleting documents
+    # 10. Test categories dynamic endpoints
+    cat_list = client.get("/api/documents/categories", headers=gerant_headers)
+    assert cat_list.status_code == 200
+    cats = cat_list.json()
+    assert len(cats) >= 1
+
+    # Create new category
+    new_cat_res = client.post(
+        "/api/documents/categories",
+        json={"name": "Travaux"},
+        headers=gerant_headers,
+    )
+    assert new_cat_res.status_code == 200
+    new_cat_data = new_cat_res.json()
+    assert new_cat_data["name"] == "Travaux"
+
+    # Delete the created category
+    del_cat_res = client.delete(
+        f"/api/documents/categories/{new_cat_data['id']}",
+        headers=gerant_headers,
+    )
+    assert del_cat_res.status_code == 200
+
+    # 11. Gérant deleting documents
     delete_res = client.delete(f"/api/documents/{doc_id}", headers=gerant_headers)
     assert delete_res.status_code == 200
     delete_inv = client.delete(f"/api/documents/{inv_data['id']}", headers=gerant_headers)
