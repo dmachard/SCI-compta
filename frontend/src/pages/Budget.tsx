@@ -396,7 +396,7 @@ export default function BudgetPage() {
               className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Nouvelle dépense</span>
+              <span>Nouvelle dépense</span>
             </button>
           </div>
         )}
@@ -479,7 +479,7 @@ export default function BudgetPage() {
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>+ Ajouter un premier poste</span>
+                    <span>Ajouter un premier poste</span>
                   </button>
                   <button
                     onClick={() => setShowNewYearModal(true)}
@@ -710,7 +710,7 @@ export default function BudgetPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Nouvel appel de fonds</span>
+                <span>Nouvel appel de fonds</span>
               </button>
             )}
           </div>
@@ -889,7 +889,7 @@ export default function BudgetPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Nouveau poste</span>
+                <span>Nouveau poste</span>
               </button>
             )}
           </div>
@@ -919,7 +919,7 @@ export default function BudgetPage() {
                   className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Ajouter un premier poste</span>
+                  <span>Ajouter un premier poste</span>
                 </button>
               )}
             </div>
