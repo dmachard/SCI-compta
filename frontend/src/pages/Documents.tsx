@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   FolderArchive,
   Upload,
-  Search,
   FileText,
   Download,
   Trash2,
@@ -11,8 +10,6 @@ import {
   FileImage,
   File,
   UploadCloud,
-  LayoutList,
-  Grid,
   Pencil,
   Folder,
   FolderOpen,
@@ -117,16 +114,23 @@ export default function DocumentsPage() {
   const [sciInfo, setSciInfo] = useState<SCI | null>(null);
   const [allDocuments, setAllDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
 
-  // Navigation dans l'arborescence :
-  // selectedRoot: 'ALL' | 'FACTURES' | 'ADMIN'
-  // selectedYear: number | null
-  // selectedSubfolder: string | null
+  // Navigation dans l'arborescence
   const [selectedRoot, setSelectedRoot] = useState<'ALL' | 'FACTURES' | 'ADMIN'>('FACTURES');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedSubfolder, setSelectedSubfolder] = useState<string | null>(null);
+
+  // Années personnalisées ajoutées par l'utilisateur
+  const [customYears, setCustomYears] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('sci_custom_years');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [showAddYearModal, setShowAddYearModal] = useState(false);
+  const [newYearInput, setNewYearInput] = useState<number>(new Date().getFullYear() - 1);
 
   // Arbre déployé
   const [expandedYears, setExpandedYears] = useState<Record<number, boolean>>({
@@ -181,9 +185,9 @@ export default function DocumentsPage() {
   const isManager = currentUser?.role === 'gerant';
   const sciName = sciInfo?.name?.trim() || 'SCI LA GUERMONDERIE';
 
-  // Années disponibles pour les factures (extraites des docs + année courante)
+  // Années disponibles pour les factures (extraites des docs + custom + année courante)
   const availableYears = useMemo(() => {
-    const yearsSet = new Set<number>([new Date().getFullYear()]);
+    const yearsSet = new Set<number>([new Date().getFullYear(), ...customYears]);
     allDocuments.forEach((doc) => {
       if (doc.folder_year) {
         yearsSet.add(doc.folder_year);
@@ -193,7 +197,7 @@ export default function DocumentsPage() {
       }
     });
     return Array.from(yearsSet).sort((a, b) => b - a);
-  }, [allDocuments]);
+  }, [allDocuments, customYears]);
 
   // Initialisation de la première année
   useEffect(() => {
@@ -202,7 +206,24 @@ export default function DocumentsPage() {
     }
   }, [availableYears, selectedYear]);
 
-  // Compteurs pour chaque nœud
+  // Ajout d'une nouvelle année
+  function handleAddYear(yearToAdd: number) {
+    if (!yearToAdd || isNaN(yearToAdd) || yearToAdd < 1990 || yearToAdd > 2100) return;
+    if (!customYears.includes(yearToAdd)) {
+      const updated = [...customYears, yearToAdd].sort((a, b) => b - a);
+      setCustomYears(updated);
+      try {
+        localStorage.setItem('sci_custom_years', JSON.stringify(updated));
+      } catch {}
+    }
+    setExpandedYears((prev) => ({ ...prev, [yearToAdd]: true }));
+    setSelectedRoot('FACTURES');
+    setSelectedYear(yearToAdd);
+    setSelectedSubfolder(null);
+    setShowAddYearModal(false);
+  }
+
+  // Compteurs pour chaque dossier
   const counts = useMemo(() => {
     const byYear: Record<number, number> = {};
     const byYearSubfolder: Record<string, number> = {};
@@ -240,10 +261,9 @@ export default function DocumentsPage() {
     };
   }, [allDocuments, availableYears, selectedYear]);
 
-  // Documents filtrés selon la sélection de l'arbre
+  // Documents filtrés selon le dossier sélectionné
   const filteredDocuments = useMemo(() => {
     return allDocuments.filter((doc) => {
-      // Filtre racine
       if (selectedRoot === 'FACTURES') {
         const isFacture = doc.document_type === 'facture' || !doc.document_type;
         if (!isFacture) return false;
@@ -254,22 +274,11 @@ export default function DocumentsPage() {
         if (doc.document_type !== 'administratif') return false;
         if (selectedSubfolder && doc.category !== selectedSubfolder) return false;
       }
-
-      // Filtre de recherche
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const matchesName = doc.original_filename.toLowerCase().includes(q);
-        const matchesSupplier = doc.supplier?.toLowerCase().includes(q);
-        const matchesNotes = doc.notes?.toLowerCase().includes(q);
-        const matchesCat = doc.category?.toLowerCase().includes(q);
-        return matchesName || matchesSupplier || matchesNotes || matchesCat;
-      }
-
       return true;
     });
-  }, [allDocuments, selectedRoot, selectedYear, selectedSubfolder, search]);
+  }, [allDocuments, selectedRoot, selectedYear, selectedSubfolder]);
 
-  // Total TTC des factures filtrées
+  // Total TTC des factures affichées
   const totalAmountTtc = useMemo(() => {
     return filteredDocuments.reduce((acc, d) => acc + (d.amount_ttc ? Number(d.amount_ttc) : 0), 0);
   }, [filteredDocuments]);
@@ -296,7 +305,7 @@ export default function DocumentsPage() {
     setShowUploadModal(true);
   }
 
-  // Analyse et pré-remplissage intelligent quand un fichier est choisi
+  // Analyse intelligente quand un fichier est choisi
   function handleFileSelected(newFile: File) {
     setFile(newFile);
     const detection = autoDetectFromFilename(newFile.name);
@@ -377,7 +386,7 @@ export default function DocumentsPage() {
     }
   }
 
-  // Ouverture de l'édition d'un document existant
+  // Ouverture de l'édition d'un document
   function openEditModal(doc: DocumentItem) {
     setEditingDoc(doc);
     setFormType((doc.document_type as any) || 'facture');
@@ -420,7 +429,7 @@ export default function DocumentsPage() {
     }
   }
 
-  // Téléchargement d'un fichier unique
+  // Téléchargement d'un fichier
   async function handleDownload(doc: DocumentItem) {
     setDownloadingId(doc.id);
     try {
@@ -432,7 +441,7 @@ export default function DocumentsPage() {
     }
   }
 
-  // Export ZIP du dossier courant
+  // Export ZIP du dossier sélectionné
   async function handleExportZip() {
     setExportingZip(true);
     try {
@@ -501,14 +510,26 @@ export default function DocumentsPage() {
     return <Folder size={14} className="text-slate-400" />;
   }
 
+  // Titre convivial du dossier courant pour l'en-tête de droite
+  const currentFolderTitle = useMemo(() => {
+    if (selectedRoot === 'ALL') return 'Tous les documents';
+    if (selectedRoot === 'FACTURES') {
+      return selectedSubfolder ? `Factures ${selectedYear} › ${selectedSubfolder}` : `Factures ${selectedYear}`;
+    }
+    if (selectedRoot === 'ADMIN') {
+      return selectedSubfolder ? `Juridique & Administratif › ${selectedSubfolder}` : 'Juridique & Administratif';
+    }
+    return '';
+  }, [selectedRoot, selectedYear, selectedSubfolder]);
+
   return (
     <div
       onDragOver={handlePageDragOver}
       onDragLeave={handlePageDragLeave}
       onDrop={handlePageDrop}
-      className="space-y-5 animate-fade-in relative min-h-[650px]"
+      className="space-y-5 animate-fade-in relative min-h-[600px]"
     >
-      {/* Overlay visuel de glisser-déposer global */}
+      {/* Overlay glisser-déposer global */}
       {isPageDragging && (
         <div className="fixed inset-0 bg-indigo-950/70 z-50 backdrop-blur-xs flex items-center justify-center p-8 pointer-events-none">
           <div className="bg-white rounded-3xl p-10 max-w-md w-full text-center space-y-4 border-2 border-indigo-400 shadow-2xl animate-bounce">
@@ -527,7 +548,7 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* En-tête principal */}
+      {/* En-tête principal épuré */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-indigo-600 text-white rounded-xl shadow-xs">
@@ -535,15 +556,13 @@ export default function DocumentsPage() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold text-slate-900">
-                {sciName}
-              </h1>
+              <h1 className="text-xl font-extrabold text-slate-900">{sciName}</h1>
               <span className="text-xs font-semibold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">
                 Archivage & Documents
               </span>
             </div>
             <p className="text-xs text-slate-500 font-medium mt-0.5">
-              Factures d'exploitation par millésime & Pièces juridiques officielles
+              Classement des factures d'exploitation et des pièces juridiques
             </p>
           </div>
         </div>
@@ -571,14 +590,14 @@ export default function DocumentsPage() {
         </div>
       </div>
 
-      {/* Explorateur 2 Colonnes : Arborescence à gauche + Fichiers à droite */}
+      {/* Explorateur 2 Colonnes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Colonne Gauche : Arbre des dossiers (SCI / Années / Catégories) */}
+        {/* Colonne Gauche : Arbre des dossiers */}
         <div className="lg:col-span-4 space-y-4">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
               <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-                Arborescence des dossiers
+                Dossiers
               </span>
               <button
                 onClick={() => {
@@ -597,9 +616,25 @@ export default function DocumentsPage() {
 
             {/* Section 1 : FACTURES PAR ANNÉE */}
             <div className="space-y-1">
-              <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5 px-2 py-1">
-                <Calendar size={13} className="text-indigo-600" />
-                <span>Factures d'exploitation</span>
+              <div className="flex items-center justify-between px-2 py-1">
+                <div className="text-[11px] font-bold text-slate-500 flex items-center gap-1.5">
+                  <Calendar size={13} className="text-indigo-600" />
+                  <span>Factures d'exploitation</span>
+                </div>
+                {isManager && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewYearInput(new Date().getFullYear() - 1);
+                      setShowAddYearModal(true);
+                    }}
+                    className="flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md transition-colors"
+                    title="Ajouter une nouvelle année (ex: 2025, 2024)"
+                  >
+                    <PlusCircle size={12} />
+                    <span>+ Année</span>
+                  </button>
+                )}
               </div>
 
               {availableYears.map((year) => {
@@ -645,7 +680,7 @@ export default function DocumentsPage() {
                       </span>
                     </div>
 
-                    {/* Sous-dossiers de l'année (01 - Banque, 02 - EDF...) */}
+                    {/* Sous-dossiers de l'année */}
                     {isExpanded && (
                       <div className="pl-6 space-y-0.5 border-l-2 border-slate-100 ml-4 py-1">
                         {INVOICE_SUBFOLDERS.map((subfolder) => {
@@ -694,7 +729,7 @@ export default function DocumentsPage() {
               })}
             </div>
 
-            {/* Section 2 : DOCUMENTS JURIDIQUES & ADMINISTRATIFS */}
+            {/* Section 2 : JURIDIQUE & ADMINISTRATIF */}
             <div className="space-y-1 pt-2 border-t border-slate-100">
               <div
                 className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-bold cursor-pointer transition-all ${
@@ -775,372 +810,250 @@ export default function DocumentsPage() {
           </div>
         </div>
 
-        {/* Colonne Droite : Vue des fichiers dans le dossier sélectionné */}
+        {/* Colonne Droite : Vue directe et épurée des documents du dossier */}
         <div className="lg:col-span-8 space-y-4">
-          {/* Barre du dossier actif + Outils */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              {/* Fil d'Ariane (Breadcrumb) */}
-              <div className="flex items-center gap-1.5 text-xs flex-wrap">
-                <span className="font-bold text-slate-500">{sciName}</span>
-                <ChevronRight size={13} className="text-slate-300" />
-                {selectedRoot === 'ALL' && (
-                  <span className="font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
-                    Tous les documents
-                  </span>
-                )}
-                {selectedRoot === 'FACTURES' && (
-                  <>
-                    <span className="font-bold text-slate-600">Factures {selectedYear}</span>
-                    {selectedSubfolder && (
-                      <>
-                        <ChevronRight size={13} className="text-slate-300" />
-                        <span className="font-extrabold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
-                          {selectedSubfolder}
-                        </span>
-                      </>
-                    )}
-                  </>
-                )}
-                {selectedRoot === 'ADMIN' && (
-                  <>
-                    <span className="font-bold text-slate-600">Juridique & Administratif</span>
-                    {selectedSubfolder && (
-                      <>
-                        <ChevronRight size={13} className="text-slate-300" />
-                        <span className="font-extrabold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md">
-                          {selectedSubfolder}
-                        </span>
-                      </>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Résumé nombre de pièces & Total TTC */}
-              <div className="flex items-center gap-2 text-xs">
-                <span className="font-bold text-slate-500">
+          {/* En-tête du dossier actif */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-extrabold text-slate-900">
+                  {currentFolderTitle}
+                </h2>
+                <span className="text-[11px] font-extrabold px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full">
                   {filteredDocuments.length} document{filteredDocuments.length > 1 ? 's' : ''}
                 </span>
                 {totalAmountTtc > 0 && selectedRoot === 'FACTURES' && (
-                  <span className="font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                    Total: {totalAmountTtc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  <span className="text-[11px] font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100">
+                    Total: {totalAmountTtc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € TTC
                   </span>
                 )}
               </div>
+              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                {selectedRoot === 'FACTURES'
+                  ? `Factures pour l'exercice ${selectedYear}`
+                  : selectedRoot === 'ADMIN'
+                  ? 'Actes, statuts et pièces officielles de la SCI'
+                  : 'Tous les documents confondus'}
+              </p>
             </div>
 
-            {/* Recherche & Modes de vue */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher dans ce dossier..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                />
-              </div>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              {filteredDocuments.length > 0 && (
+                <button
+                  onClick={handleExportZip}
+                  disabled={exportingZip}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                  title="Télécharger ce dossier en ZIP"
+                >
+                  <Archive size={14} />
+                  <span>ZIP</span>
+                </button>
+              )}
 
-              <div className="flex items-center gap-2 self-end sm:self-auto">
-                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
-                  <button
-                    onClick={() => setViewMode('table')}
-                    className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                      viewMode === 'table'
-                        ? 'bg-white text-slate-900 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                    title="Affichage en liste / tableau"
-                  >
-                    <LayoutList size={15} />
-                    <span className="hidden sm:inline">Tableau</span>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
-                      viewMode === 'grid'
-                        ? 'bg-white text-slate-900 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-900'
-                    }`}
-                    title="Affichage en grille"
-                  >
-                    <Grid size={15} />
-                    <span className="hidden sm:inline">Grille</span>
-                  </button>
-                </div>
-              </div>
+              {isManager && (
+                <button
+                  onClick={openUploadForCurrentFolder}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-xs"
+                >
+                  <Upload size={14} />
+                  <span>Ajouter ici</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Raccourcis visuels des sous-dossiers si on est à la racine d'une année */}
-          {selectedRoot === 'FACTURES' && !selectedSubfolder && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {INVOICE_SUBFOLDERS.map((sub) => {
-                const count = counts.byYearSubfolder[`${selectedYear}_${sub}`] || 0;
-                return (
-                  <button
-                    key={sub}
-                    onClick={() => setSelectedSubfolder(sub)}
-                    className="p-3 bg-white hover:bg-indigo-50/50 border border-slate-200 hover:border-indigo-200 rounded-xl text-left transition-all group shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="p-1.5 bg-slate-50 group-hover:bg-indigo-100 rounded-lg text-slate-600 group-hover:text-indigo-600 transition-colors">
-                        {getSubfolderIcon(sub)}
-                      </div>
-                      <span className="text-[11px] font-extrabold text-slate-400 group-hover:text-indigo-600">
-                        {count}
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-800 truncate">{sub}</p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Raccourcis visuels pour Juridique si on est à la racine de Juridique */}
-          {selectedRoot === 'ADMIN' && !selectedSubfolder && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {ADMIN_SUBFOLDERS.map((sub) => {
-                const count = counts.byAdminSubfolder[sub] || 0;
-                return (
-                  <button
-                    key={sub}
-                    onClick={() => setSelectedSubfolder(sub)}
-                    className="p-3 bg-white hover:bg-teal-50/50 border border-slate-200 hover:border-teal-200 rounded-xl text-left transition-all group shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="p-1.5 bg-slate-50 group-hover:bg-teal-100 rounded-lg text-slate-600 group-hover:text-teal-600 transition-colors">
-                        {getSubfolderIcon(sub)}
-                      </div>
-                      <span className="text-[11px] font-extrabold text-slate-400 group-hover:text-teal-600">
-                        {count}
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold text-slate-800 truncate">{sub}</p>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Zone de dépôt rapide dans le dossier courant */}
-          {isManager && (
-            <div
-              onClick={openUploadForCurrentFolder}
-              className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50/60 hover:bg-indigo-50/30 rounded-2xl p-4 text-center cursor-pointer transition-all group flex items-center justify-center gap-3"
-            >
-              <div className="p-2 bg-white rounded-xl shadow-2xs group-hover:scale-105 transition-transform text-indigo-600">
-                <UploadCloud size={20} />
-              </div>
-              <div className="text-left">
-                <p className="text-xs font-extrabold text-slate-700 group-hover:text-indigo-700">
-                  Glissez-déposez un fichier ici ou cliquez pour ajouter
-                </p>
-                <p className="text-[10px] text-slate-400 font-medium">
-                  {selectedRoot === 'FACTURES'
-                    ? `Sera classé dans Factures ${selectedYear} ${selectedSubfolder ? `> ${selectedSubfolder}` : ''}`
-                    : selectedRoot === 'ADMIN'
-                    ? `Sera classé dans Juridique ${selectedSubfolder ? `> ${selectedSubfolder}` : ''}`
-                    : 'Le dossier sera pré-rempli automatiquement'}
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Liste / Tableau des documents */}
+          {/* Tableau direct des documents */}
           {loading ? (
             <div className="flex items-center justify-center h-48 bg-white rounded-2xl border border-slate-200">
               <div className="animate-spin w-7 h-7 border-2 border-indigo-600 border-t-transparent rounded-full" />
             </div>
           ) : filteredDocuments.length > 0 ? (
-            viewMode === 'table' ? (
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
-                        <th className="py-3 px-4">Document & Fichier</th>
-                        <th className="py-3 px-3">Dossier / Catégorie</th>
-                        <th className="py-3 px-3">Montant TTC</th>
-                        <th className="py-3 px-3">Date</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs">
-                      {filteredDocuments.map((doc) => (
-                        <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors">
-                          {/* Nom du document et fichier */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-start gap-2.5">
-                              <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl shrink-0 mt-0.5">
-                                {getFileIcon(doc.original_filename)}
-                              </div>
-                              <div className="space-y-0.5 min-w-0">
-                                <p className="font-extrabold text-slate-900 text-xs break-words">
-                                  {doc.supplier || doc.original_filename}
-                                </p>
-                                <p className="font-mono text-[11px] text-slate-400 break-all">
-                                  {doc.original_filename}
-                                </p>
-                                {doc.notes && (
-                                  <p className="text-[11px] text-slate-500 italic mt-0.5">
-                                    {doc.notes}
-                                  </p>
-                                )}
-                              </div>
+            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                      <th className="py-3 px-4">Document & Fichier</th>
+                      <th className="py-3 px-3">Dossier</th>
+                      <th className="py-3 px-3">Montant TTC</th>
+                      <th className="py-3 px-3">Date</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-xs">
+                    {filteredDocuments.map((doc) => (
+                      <tr key={doc.id} className="hover:bg-slate-50/60 transition-colors">
+                        {/* Nom du document et fichier */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-start gap-2.5">
+                            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl shrink-0 mt-0.5">
+                              {getFileIcon(doc.original_filename)}
                             </div>
-                          </td>
+                            <div className="space-y-0.5 min-w-0">
+                              <p className="font-extrabold text-slate-900 text-xs break-words">
+                                {doc.supplier || doc.original_filename}
+                              </p>
+                              <p className="font-mono text-[11px] text-slate-400 break-all">
+                                {doc.original_filename}
+                              </p>
+                              {doc.notes && (
+                                <p className="text-[11px] text-slate-500 italic mt-0.5">
+                                  {doc.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
 
-                          {/* Dossier / Catégorie */}
-                          <td className="py-3.5 px-3 whitespace-nowrap">
-                            <span className="inline-flex items-center gap-1 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold">
-                              {getSubfolderIcon(doc.category)}
-                              <span>{doc.category || 'Non classé'}</span>
+                        {/* Dossier / Catégorie */}
+                        <td className="py-3.5 px-3 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold">
+                            {getSubfolderIcon(doc.category)}
+                            <span>{doc.category || 'Non classé'}</span>
+                          </span>
+                        </td>
+
+                        {/* Montant TTC */}
+                        <td className="py-3.5 px-3 whitespace-nowrap">
+                          {doc.amount_ttc !== null && doc.amount_ttc !== undefined ? (
+                            <span className="font-extrabold text-slate-800 text-xs">
+                              {Number(doc.amount_ttc).toLocaleString('fr-FR', {
+                                minimumFractionDigits: 2,
+                              })} €
                             </span>
-                          </td>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
 
-                          {/* Montant TTC */}
-                          <td className="py-3.5 px-3 whitespace-nowrap">
-                            {doc.amount_ttc !== null && doc.amount_ttc !== undefined ? (
-                              <span className="font-extrabold text-slate-800 text-xs">
-                                {Number(doc.amount_ttc).toLocaleString('fr-FR', {
-                                  minimumFractionDigits: 2,
-                                })} €
-                              </span>
-                            ) : (
-                              <span className="text-slate-300">-</span>
-                            )}
-                          </td>
+                        {/* Date */}
+                        <td className="py-3.5 px-3 whitespace-nowrap text-slate-500 font-medium">
+                          {doc.document_date
+                            ? new Date(doc.document_date).toLocaleDateString('fr-FR')
+                            : new Date(doc.created_at).toLocaleDateString('fr-FR')}
+                        </td>
 
-                          {/* Date */}
-                          <td className="py-3.5 px-3 whitespace-nowrap text-slate-500 font-medium">
-                            {doc.document_date
-                              ? new Date(doc.document_date).toLocaleDateString('fr-FR')
-                              : new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
-                            <button
-                              onClick={() => handleDownload(doc)}
-                              disabled={downloadingId === doc.id}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
-                              title="Télécharger / Consulter"
-                            >
-                              <Download size={13} />
-                              <span>{downloadingId === doc.id ? '...' : 'Consulter'}</span>
-                            </button>
-
-                            {isManager && (
-                              <>
-                                <button
-                                  onClick={() => openEditModal(doc)}
-                                  className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-block"
-                                  title="Déplacer de dossier ou modifier"
-                                >
-                                  <Pencil size={15} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(doc.id)}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-block"
-                                  title="Supprimer"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : (
-              /* Vue Grille */
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredDocuments.map((doc) => (
-                  <div
-                    key={doc.id}
-                    className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs hover:border-slate-300 transition-all flex flex-col justify-between space-y-3"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl shrink-0">
-                        {getFileIcon(doc.original_filename)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md truncate">
-                            {doc.category || 'Autre'}
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            {doc.document_date
-                              ? new Date(doc.document_date).toLocaleDateString('fr-FR')
-                              : new Date(doc.created_at).toLocaleDateString('fr-FR')}
-                          </span>
-                        </div>
-                        <p className="font-extrabold text-slate-900 text-xs mt-1 truncate">
-                          {doc.supplier || doc.original_filename}
-                        </p>
-                        <p className="font-mono text-[10px] text-slate-400 truncate">
-                          {doc.original_filename}
-                        </p>
-                        {doc.amount_ttc && (
-                          <p className="text-xs font-extrabold text-emerald-600 mt-1">
-                            {Number(doc.amount_ttc).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € TTC
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <button
-                        onClick={() => handleDownload(doc)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800"
-                      >
-                        <Download size={13} />
-                        <span>Télécharger</span>
-                      </button>
-
-                      {isManager && (
-                        <div className="flex items-center gap-1">
+                        {/* Actions */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap space-x-1.5">
                           <button
-                            onClick={() => openEditModal(doc)}
-                            className="p-1 text-slate-400 hover:text-indigo-600 rounded"
+                            onClick={() => handleDownload(doc)}
+                            disabled={downloadingId === doc.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                            title="Télécharger / Consulter"
                           >
-                            <Pencil size={14} />
+                            <Download size={13} />
+                            <span>{downloadingId === doc.id ? '...' : 'Consulter'}</span>
                           </button>
-                          <button
-                            onClick={() => handleDelete(doc.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
+
+                          {isManager && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(doc)}
+                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors inline-block"
+                                title="Déplacer de dossier ou modifier"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(doc.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-block"
+                                title="Supprimer"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )
+            </div>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center space-y-3 shadow-xs">
+            <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center space-y-3 shadow-xs">
               <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mx-auto">
                 <FolderOpen size={24} />
               </div>
               <div>
                 <p className="font-extrabold text-slate-700 text-sm">Ce dossier est vide</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Glissez un fichier ou cliquez sur « Ajouter un document » pour le classer ici.
+                  Glissez-déposez un fichier ou cliquez ci-dessous pour ajouter un document.
                 </p>
               </div>
+              {isManager && (
+                <button
+                  onClick={openUploadForCurrentFolder}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-xs"
+                >
+                  <Upload size={14} />
+                  <span>Déposer un document ici</span>
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Modale d'Ajout d'une nouvelle année */}
+      {showAddYearModal && (
+        <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900">
+                Ajouter une année
+              </h3>
+              <button
+                onClick={() => setShowAddYearModal(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Indiquez l'année à créer pour les factures d'exploitation (ex: 2025, 2024, 2027). Les 7 sous-dossiers seront créés automatiquement.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddYear(newYearInput);
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Année
+                </label>
+                <input
+                  type="number"
+                  min={1990}
+                  max={2100}
+                  value={newYearInput}
+                  onChange={(e) => setNewYearInput(parseInt(e.target.value, 10))}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-900"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddYearModal(false)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-xs"
+                >
+                  Créer l'année
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modale d'Upload */}
       {showUploadModal && (
@@ -1227,7 +1140,7 @@ export default function DocumentsPage() {
                 </button>
               </div>
 
-              {/* Si Facture : Choix de l'année et du sous-dossier */}
+              {/* Si Facture : Année et sous-dossier */}
               {formType === 'facture' ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -1277,7 +1190,7 @@ export default function DocumentsPage() {
                 </div>
               )}
 
-              {/* Fournisseur / Émetteur & Montant TTC */}
+              {/* Fournisseur & Montant TTC */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">
@@ -1361,7 +1274,7 @@ export default function DocumentsPage() {
         </div>
       )}
 
-      {/* Modale d'Édition / Déplacement de dossier */}
+      {/* Modale d'Édition / Déplacement */}
       {editingDoc && (
         <div className="fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl border border-slate-200">
