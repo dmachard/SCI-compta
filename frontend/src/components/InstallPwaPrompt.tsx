@@ -7,10 +7,13 @@ export default function InstallPwaPrompt() {
 
   useEffect(() => {
     // Vérifier si l'app est déjà installée en mode autonome
-    if (
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true
-    ) {
+    const isStandalone =
+      (typeof window !== 'undefined' &&
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+      (typeof window !== 'undefined' && (window.navigator as any)?.standalone === true);
+
+    if (isStandalone) {
       setIsInstalled(true);
       return;
     }
