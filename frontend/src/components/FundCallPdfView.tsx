@@ -54,7 +54,15 @@ ${fundCall.lines.map((l) => `• ${l.associate_name} (${l.shares} parts - ${l.qu
   };
 
   const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = '';
+    const restoreTitle = () => {
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+    window.addEventListener('afterprint', restoreTitle);
     window.print();
+    setTimeout(restoreTitle, 2000);
   };
 
   return (
@@ -128,7 +136,7 @@ ${fundCall.lines.map((l) => `• ${l.associate_name} (${l.shares} parts - ${l.qu
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-2">
               Postes budgétaires concernés
             </h3>
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-100/75 text-slate-600 font-bold border-b border-slate-200">
                   <tr>
@@ -164,7 +172,7 @@ ${fundCall.lines.map((l) => `• ${l.associate_name} (${l.shares} parts - ${l.qu
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 mb-2">
               Répartition selon les parts sociales des associés
             </h3>
-            <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-100/75 text-slate-600 font-bold border-b border-slate-200">
                   <tr>

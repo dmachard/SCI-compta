@@ -659,7 +659,8 @@ export default function DocumentsPage() {
         </div>
       ) : filteredDocuments.length > 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto">
+          {/* Tableau desktop / tablette */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -736,6 +737,68 @@ export default function DocumentsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Vue mobile : Liste sobre et nette délimitée par de fins séparateurs */}
+          <div className="md:hidden divide-y divide-slate-200">
+            {filteredDocuments.map((doc) => (
+              <div key={doc.id} className="p-4 space-y-2.5 hover:bg-slate-50/60 transition-colors">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-slate-100 border border-slate-200 rounded-lg shrink-0 mt-0.5">
+                    {getFileIcon(doc.original_filename)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-extrabold text-slate-900 text-xs break-words leading-tight">
+                      {doc.supplier || doc.original_filename}
+                    </p>
+                    <p className="font-mono text-[11px] text-slate-400 break-all mt-0.5">
+                      {doc.original_filename}
+                    </p>
+                    {doc.notes && (
+                      <p className="text-[11px] text-slate-500 italic mt-0.5">{doc.notes}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[10px]">
+                    {doc.folder_year || (doc.document_date ? new Date(doc.document_date).getFullYear() : 2026)}
+                  </span>
+
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">
+                    {getSubfolderIcon(cleanCategory(doc.category))}
+                    <span>{cleanCategory(doc.category)}</span>
+                  </span>
+
+                  <span className="text-[11px] text-slate-400 font-mono ml-auto">
+                    {doc.document_date
+                      ? new Date(doc.document_date).toLocaleDateString('fr-FR')
+                      : new Date(doc.created_at).toLocaleDateString('fr-FR')}
+                  </span>
+                </div>
+
+                <div className="pt-1 flex items-center justify-between">
+                  <button
+                    onClick={() => handleDownload(doc)}
+                    disabled={downloadingId === doc.id}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                  >
+                    <Download size={13} />
+                    <span>{downloadingId === doc.id ? 'Chargement...' : 'Consulter'}</span>
+                  </button>
+
+                  {isManager && (
+                    <button
+                      onClick={() => handleDelete(doc.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ) : (

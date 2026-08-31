@@ -242,50 +242,96 @@ export default function AssociateDetail() {
           <h2 className="font-extrabold text-slate-900 text-base">Historique des apports et versements de cet associé</h2>
         </div>
         {movements.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-                <tr>
-                  <th className="py-4 px-6">Date</th>
-                  <th className="py-4 px-6">Type d'opération</th>
-                  <th className="py-4 px-6 text-right">Montant</th>
-                  <th className="py-4 px-6">Motif / Libellé bancaire</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {movements.map((m) => {
-                  const isVersement = m.movement_type === 'versement';
-                  return (
-                    <tr
-                      key={m.id}
-                      className="hover:bg-slate-50/80 transition-colors"
-                    >
-                      <td className="px-6 py-4 text-xs font-mono font-medium text-slate-600">
+          <>
+            {/* Tableau desktop / tablette */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-4 px-6">Date</th>
+                    <th className="py-4 px-6">Type d'opération</th>
+                    <th className="py-4 px-6 text-right">Montant</th>
+                    <th className="py-4 px-6">Motif / Libellé bancaire</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {movements.map((m) => {
+                    const isVersement = m.movement_type === 'versement';
+                    return (
+                      <tr
+                        key={m.id}
+                        className="hover:bg-slate-50/80 transition-colors"
+                      >
+                        <td className="px-6 py-4 text-xs font-mono font-medium text-slate-600">
+                          {new Date(m.movement_date).toLocaleDateString('fr-FR')}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`text-xs px-3 py-1 rounded-full font-bold inline-flex items-center gap-1 ${
+                              isVersement
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                            }`}
+                          >
+                            {isVersement ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+                            {isVersement ? 'Apport / Versement (+)' : 'Remboursement (-)'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right font-mono font-extrabold text-sm text-slate-900">
+                          {isVersement ? '+' : '-'}
+                          {fmt(m.amount)}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-700 font-medium">{m.reason || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Vue mobile : Liste sobre et nette délimitée par de fins séparateurs */}
+            <div className="md:hidden divide-y divide-slate-200">
+              {movements.map((m) => {
+                const isVersement = m.movement_type === 'versement';
+                return (
+                  <div key={m.id} className="p-4 space-y-2 hover:bg-slate-50/60 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-mono font-medium text-slate-500">
                         {new Date(m.movement_date).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`text-xs px-3 py-1 rounded-full font-bold inline-flex items-center gap-1 ${
-                            isVersement
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}
-                        >
-                          {isVersement ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-                          {isVersement ? 'Apport / Versement (+)' : 'Remboursement (-)'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-mono font-extrabold text-sm text-slate-900">
+                      </span>
+                      <span
+                        className={`font-mono font-black text-sm ${
+                          isVersement ? 'text-emerald-600' : 'text-amber-600'
+                        }`}
+                      >
                         {isVersement ? '+' : '-'}
                         {fmt(m.amount)}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-700 font-medium">{m.reason || '—'}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded font-bold inline-flex items-center gap-1 ${
+                          isVersement
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {isVersement ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                        {isVersement ? 'Apport / Versement' : 'Remboursement'}
+                      </span>
+                    </div>
+
+                    {m.reason && (
+                      <p className="text-xs text-slate-600 font-medium pt-0.5">
+                        {m.reason}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         ) : (
           <div className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
             Aucun versement enregistré pour cet associé pour le moment.

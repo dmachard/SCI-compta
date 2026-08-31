@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X } from 'lucide-react';
+import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { bankApi, associatesApi, authApi, budgetApi } from '../api';
 import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User, BudgetTableItem } from '../types';
 
@@ -10,6 +10,19 @@ function fmt(n: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
+}
+
+function getPageNumbers(current: number, total: number): (number | string)[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, '...', total];
+  }
+  if (current >= total - 3) {
+    return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, '...', current - 1, current, current + 1, '...', total];
 }
 
 const COMMON_CATEGORIES = [
@@ -35,6 +48,10 @@ export default function BankAccounts() {
   // Filtres
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchFilter, setSearchFilter] = useState<string>('');
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Import CSV state
   const [uploading, setUploading] = useState(false);
@@ -75,11 +92,13 @@ export default function BankAccounts() {
   }
 
   useEffect(() => {
+    setCurrentPage(1);
     loadData();
   }, [statusFilter]);
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setCurrentPage(1);
     loadData();
   }
 
@@ -157,6 +176,14 @@ export default function BankAccounts() {
   const primaryAccount = accounts[0];
   const classifiedCount = transactions.filter(t => t.reconciliation_status === 'rapprochee').length;
   const pendingCount = transactions.filter(t => t.reconciliation_status !== 'rapprochee').length;
+
+  const totalItems = transactions.length;
+  const isAll = pageSize === -1;
+  const totalPages = isAll ? 1 : Math.max(1, Math.ceil(totalItems / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIndex = isAll ? 0 : (safeCurrentPage - 1) * pageSize;
+  const endIndex = isAll ? totalItems : Math.min(startIndex + pageSize, totalItems);
+  const paginatedTransactions = isAll ? transactions : transactions.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -284,113 +311,288 @@ export default function BankAccounts() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50/50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-100">
-                <tr>
-                  <th className="py-3 px-5">Date</th>
-                  <th className="py-3 px-5">Libellé d'origine</th>
-                  <th className="py-3 px-5">Catégorie</th>
-                  <th className="py-3 px-5 text-right">Montant</th>
-                  <th className="py-3 px-5">Affectation / Statut</th>
-                  <th className="py-3 px-5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {transactions.map((tx) => {
-                  const isCredit = tx.amount >= 0;
-                  const associateMatch = associates.find(a => a.id === tx.associate_id);
-                  const isClassified = tx.reconciliation_status === 'rapprochee';
+          <>
+            {/* Tableau desktop / tablette */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-slate-50/50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-100">
+                  <tr>
+                    <th className="py-3 px-5">Date</th>
+                    <th className="py-3 px-5">Libellé d'origine</th>
+                    <th className="py-3 px-5">Catégorie</th>
+                    <th className="py-3 px-5 text-right">Montant</th>
+                    <th className="py-3 px-5">Affectation / Statut</th>
+                    <th className="py-3 px-5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedTransactions.map((tx) => {
+                    const isCredit = tx.amount >= 0;
+                    const associateMatch = associates.find(a => a.id === tx.associate_id);
+                    const isClassified = tx.reconciliation_status === 'rapprochee';
 
-                  return (
-                    <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
-                      {/* Date */}
-                      <td className="py-3.5 px-5 whitespace-nowrap text-slate-500 font-mono text-xs">
-                        {new Date(tx.transaction_date).toLocaleDateString('fr-FR')}
-                      </td>
+                    return (
+                      <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
+                        {/* Date */}
+                        <td className="py-3.5 px-5 whitespace-nowrap text-slate-500 font-mono text-xs">
+                          {new Date(tx.transaction_date).toLocaleDateString('fr-FR')}
+                        </td>
 
-                      {/* Libellé */}
-                      <td className="py-3.5 px-5 max-w-sm md:max-w-md">
-                        <p className="text-slate-900 font-medium text-xs leading-relaxed" title={tx.original_label}>
-                          {tx.original_label}
-                        </p>
-                      </td>
+                        {/* Libellé */}
+                        <td className="py-3.5 px-5 max-w-sm md:max-w-md">
+                          <p className="text-slate-900 font-medium text-xs leading-relaxed" title={tx.original_label}>
+                            {tx.original_label}
+                          </p>
+                        </td>
 
-                      {/* Catégorie */}
-                      <td className="py-3.5 px-5 whitespace-nowrap text-xs">
-                        {tx.category ? (
-                          <span className="text-slate-700 font-medium bg-slate-100 px-2.5 py-1 rounded-md text-[11px]">
-                            {tx.category}
+                        {/* Catégorie */}
+                        <td className="py-3.5 px-5 whitespace-nowrap text-xs">
+                          {tx.category ? (
+                            <span className="text-slate-700 font-medium bg-slate-100 px-2.5 py-1 rounded-md text-[11px]">
+                              {tx.category}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">Non catégorisé</span>
+                          )}
+                        </td>
+
+                        {/* Montant (Texte épuré sans fond rose/vert) */}
+                        <td className="py-3.5 px-5 text-right whitespace-nowrap font-mono font-extrabold text-sm">
+                          <span className={isCredit ? 'text-emerald-600' : 'text-rose-600'}>
+                            {isCredit ? `+${fmt(tx.amount)}` : fmt(tx.amount)}
                           </span>
-                        ) : (
-                          <span className="text-slate-400 italic text-[11px]">Non catégorisé</span>
-                        )}
-                      </td>
+                        </td>
 
-                      {/* Montant (Texte épuré sans fond rose/vert) */}
-                      <td className="py-3.5 px-5 text-right whitespace-nowrap font-mono font-extrabold text-sm">
-                        <span className={isCredit ? 'text-emerald-600' : 'text-rose-600'}>
-                          {isCredit ? `+${fmt(tx.amount)}` : fmt(tx.amount)}
+                        {/* Affectation / Statut */}
+                        <td className="py-3.5 px-5 whitespace-nowrap text-xs">
+                          <div className="flex flex-col gap-1 items-start">
+                            {associateMatch && (
+                              <span className="inline-flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md font-bold text-[11px]">
+                                <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+                                {associateMatch.first_name} {associateMatch.last_name}
+                              </span>
+                            )}
+                            {tx.budget_item_id && (
+                              <span className="inline-flex items-center gap-1 text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[10px]">
+                                <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.icon || '⚡'}</span>
+                                <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.name || 'Poste budgétaire'}</span>
+                              </span>
+                            )}
+                            {!tx.category && !associateMatch && !tx.budget_item_id && (
+                              <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-bold">
+                                À traiter
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Action */}
+                        <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-2">
+                          {currentUser?.role === 'gerant' ? (
+                            <>
+                              <button
+                                onClick={() => openReconcileModal(tx)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                                  isClassified
+                                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
+                                }`}
+                              >
+                                {isClassified ? 'Modifier' : 'Classer'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteTx(tx.id)}
+                                className="p-1 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">Lecture seule</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Vue mobile : Liste sobre et nette délimitée par de fins séparateurs */}
+            <div className="md:hidden divide-y divide-slate-200">
+              {paginatedTransactions.map((tx) => {
+                const isCredit = tx.amount >= 0;
+                const associateMatch = associates.find(a => a.id === tx.associate_id);
+                const isClassified = tx.reconciliation_status === 'rapprochee';
+
+                return (
+                  <div key={tx.id} className="p-4 space-y-2.5 hover:bg-slate-50/60 transition-colors">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-slate-400 font-mono text-xs">
+                        {new Date(tx.transaction_date).toLocaleDateString('fr-FR')}
+                      </span>
+                      <span className={`font-mono font-black text-sm ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {isCredit ? `+${fmt(tx.amount)}` : fmt(tx.amount)}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-900 font-medium text-xs leading-relaxed">
+                      {tx.original_label}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      {tx.category ? (
+                        <span className="text-slate-700 font-medium bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                          {tx.category}
                         </span>
-                      </td>
+                      ) : (
+                        <span className="text-slate-400 italic text-[11px]">Non catégorisé</span>
+                      )}
 
-                      {/* Affectation / Statut */}
-                      <td className="py-3.5 px-5 whitespace-nowrap text-xs">
-                        <div className="flex flex-col gap-1 items-start">
-                          {associateMatch && (
-                            <span className="inline-flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-md font-bold text-[11px]">
-                              <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
-                              {associateMatch.first_name} {associateMatch.last_name}
-                            </span>
-                          )}
-                          {tx.budget_item_id && (
-                            <span className="inline-flex items-center gap-1 text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-[10px]">
-                              <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.icon || '⚡'}</span>
-                              <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.name || 'Poste budgétaire'}</span>
-                            </span>
-                          )}
-                          {!tx.category && !associateMatch && !tx.budget_item_id && (
-                            <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded text-[11px] font-bold">
-                              À traiter
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                      {associateMatch && (
+                        <span className="inline-flex items-center gap-1 text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded font-bold text-[11px]">
+                          <UserCheck className="w-3 h-3 text-indigo-600" />
+                          {associateMatch.first_name} {associateMatch.last_name}
+                        </span>
+                      )}
 
-                      {/* Action */}
-                      <td className="py-3.5 px-5 text-right whitespace-nowrap space-x-2">
-                        {currentUser?.role === 'gerant' ? (
-                          <>
-                            <button
-                              onClick={() => openReconcileModal(tx)}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-                                isClassified
-                                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
-                              }`}
-                            >
-                              {isClassified ? 'Modifier' : 'Classer'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTx(tx.id)}
-                              className="p-1 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-all"
-                              title="Supprimer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <span className="text-xs text-slate-400 font-medium">Lecture seule</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                      {tx.budget_item_id && (
+                        <span className="inline-flex items-center gap-1 text-slate-700 bg-slate-100 px-2 py-0.5 rounded font-semibold text-[10px]">
+                          <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.icon || '⚡'}</span>
+                          <span>{budgetItems.find((b) => b.id === tx.budget_item_id)?.name || 'Poste budgétaire'}</span>
+                        </span>
+                      )}
+
+                      {!tx.category && !associateMatch && !tx.budget_item_id && (
+                        <span className="text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-[10px] font-bold">
+                          À traiter
+                        </span>
+                      )}
+                    </div>
+
+                    {currentUser?.role === 'gerant' && (
+                      <div className="pt-1 flex items-center justify-between">
+                        <button
+                          onClick={() => openReconcileModal(tx)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                            isClassified
+                              ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs'
+                          }`}
+                        >
+                          {isClassified ? 'Modifier' : 'Classer'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTx(tx.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 transition-all"
+                          title="Supprimer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+          {/* Pagination */}
+          {totalItems > 0 && (
+            <div className="px-6 py-3.5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50/50">
+              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+                <span>
+                  Affichage de <strong className="font-bold text-slate-800">{totalItems === 0 ? 0 : startIndex + 1}</strong> à{' '}
+                  <strong className="font-bold text-slate-800">{endIndex}</strong> sur{' '}
+                  <strong className="font-bold text-slate-800">{totalItems}</strong> opération{totalItems > 1 ? 's' : ''}
+                </span>
+
+                <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+                  <span className="text-slate-400">Lignes par page :</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    aria-label="Nombre de lignes par page"
+                    className="bg-white text-slate-700 text-xs font-bold rounded-lg px-2 py-1 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={-1}>Toutes</option>
+                  </select>
+                </div>
+              </div>
+
+              {!isAll && totalPages > 1 && (
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safeCurrentPage === 1}
+                    title="Première page"
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                  >
+                    <ChevronsLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage === 1}
+                    title="Page précédente"
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 disabled:opacity-30 disabled:hover:bg-transparent flex items-center gap-1 transition-all"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Précédent</span>
+                  </button>
+
+                  <div className="flex items-center space-x-1 px-1">
+                    {getPageNumbers(safeCurrentPage, totalPages).map((p, idx) =>
+                      typeof p === 'number' ? (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentPage(p)}
+                          className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                            safeCurrentPage === p
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ) : (
+                        <span key={idx} className="px-1 text-slate-400 text-xs">
+                          ...
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage === totalPages}
+                    title="Page suivante"
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 disabled:opacity-30 disabled:hover:bg-transparent flex items-center gap-1 transition-all"
+                  >
+                    <span>Suivant</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safeCurrentPage === totalPages}
+                    title="Dernière page"
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                  >
+                    <ChevronsRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
 
       {/* Modal de Classement (Stripe style) */}
       {reconcilingTx && (
