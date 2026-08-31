@@ -91,7 +91,15 @@ ${summary.associate_results.map(a => `- ${a.first_name} ${a.last_name}`).join('\
   }
 
   function handlePrint() {
+    const originalTitle = document.title;
+    document.title = '';
+    const restoreTitle = () => {
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restoreTitle);
+    };
+    window.addEventListener('afterprint', restoreTitle);
     window.print();
+    setTimeout(restoreTitle, 2000);
   }
 
   const inputClass =

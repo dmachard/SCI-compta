@@ -22,6 +22,15 @@
   --color-danger: #ef4444;
   --color-info: #2563eb;
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 5px;
+  --radius-xl: 6px;
+  --radius-2xl: 8px;
+  --radius-3xl: 8px;
+  --radius-4xl: 8px;
 }
 
 /* ─── Base ──────────────────────────────────────────────── */
@@ -59,6 +68,14 @@ body {
   background: var(--color-text-muted);
 }
 
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* ─── Animations ────────────────────────────────────────── */
 
 @keyframes fadeIn {
@@ -88,7 +105,7 @@ body {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 6mm 8mm !important;
+    margin: 0 !important;
   }
 
   aside,
@@ -103,6 +120,8 @@ body {
 
   .print-only {
     display: block !important;
+    padding: 10mm 12mm !important;
+    box-sizing: border-box !important;
   }
 
   html, body {

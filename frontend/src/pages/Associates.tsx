@@ -234,7 +234,8 @@ export default function Associates() {
       {/* Tableau épuré des Associés & Solde */}
       {associates.length > 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Tableau desktop / tablette */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm border-collapse">
               <thead className="bg-slate-50/50 text-slate-500 text-[11px] font-extrabold uppercase tracking-wider border-b border-slate-100">
                 <tr>
@@ -271,7 +272,6 @@ export default function Associates() {
                             </span>
                           )}
                         </Link>
-
                       </td>
 
                       <td className="py-4 px-6 text-right font-bold text-slate-800">{a.shares} parts</td>
@@ -300,6 +300,63 @@ export default function Associates() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Vue mobile : Liste sobre et nette délimitée par de fins séparateurs */}
+          <div className="md:hidden divide-y divide-slate-200">
+            {associates.map((a) => {
+              const bal = balances.find(b => b.associate_id === a.id);
+              const compteCourant = bal ? bal.balance : 0;
+              const capitalVersé = bal ? bal.capital_paid : 0;
+
+              return (
+                <div key={a.id} className="p-4 space-y-2.5 hover:bg-slate-50/60 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <Link
+                        to={`/associes/${a.id}`}
+                        className="text-slate-900 font-extrabold text-sm flex items-center gap-1.5"
+                      >
+                        <span className="truncate">{a.first_name} {a.last_name}</span>
+                        {a.is_manager && (
+                          <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-extrabold border border-indigo-100 shrink-0">
+                            Gérant
+                          </span>
+                        )}
+                        {a.has_account && (
+                          <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-extrabold border border-emerald-100 shrink-0">
+                            Accès web
+                          </span>
+                        )}
+                      </Link>
+                      <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                        {a.shares} parts · {a.quote_part} %
+                      </div>
+                    </div>
+
+                    <Link
+                      to={`/associes/${a.id}`}
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-all shrink-0"
+                    >
+                      Détail →
+                    </Link>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-lg text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-medium">Capital versé</span>
+                      <span className="font-mono font-bold text-slate-700 text-xs">{fmt(capitalVersé)}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-400 block font-medium">Compte courant</span>
+                      <span className={`font-mono font-black text-sm ${compteCourant >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {compteCourant >= 0 ? `+${fmt(compteCourant)}` : fmt(compteCourant)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ) : (
