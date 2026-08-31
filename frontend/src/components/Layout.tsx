@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
-  LayoutDashboard,
+  CheckSquare,
   Users,
   CreditCard,
   CalendarRange,
@@ -19,6 +19,7 @@ import logoUrl from '../assets/logo.svg';
 import InstallPwaPrompt from './InstallPwaPrompt';
 
 const navItems = [
+  { to: '/', label: 'À faire', icon: CheckSquare },
   { to: '/banque', label: 'Compte courant', icon: CreditCard },
   { to: '/associes', label: 'Comptes courant associés', icon: Users },
   { to: '/budget', label: 'Budget', icon: PiggyBank },

@@ -15,6 +15,7 @@ import BankAccounts from './pages/BankAccounts';
 import DocumentsPage from './pages/Documents';
 import Tax2072 from './pages/Tax2072';
 import BudgetPage from './pages/Budget';
+import Overview from './pages/Overview';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -91,7 +92,7 @@ export default function App() {
   return (
     <Layout user={user} onLogout={handleLogout}>
       <Routes>
-        <Route path="/" element={<Navigate to="/exercices" replace />} />
+        <Route path="/" element={<Overview />} />
         <Route path="/sci" element={<SCIConfig />} />
         <Route path="/associes" element={<Associates />} />
         <Route path="/associes/:id" element={<AssociateDetail />} />
