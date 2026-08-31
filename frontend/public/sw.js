@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sci-compta-v1_11';
+const CACHE_NAME = 'sci-compta-__SW_VERSION__';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
