@@ -10,7 +10,10 @@ COPY package.json package-lock.json* ./
 RUN npm ci || npm install
 
 COPY . .
-RUN npm run build
+RUN npm run build && \
+    if [ -n "$VITE_APP_VERSION" ]; then \
+      sed -i "s/__SW_VERSION__/${VITE_APP_VERSION}/g" dist/sw.js; \
+    fi
 
 # Stage 2: Serve with Nginx
 FROM nginx:alpine
