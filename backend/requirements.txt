@@ -4,7 +4,7 @@ sqlalchemy==2.0.*
 psycopg2-binary==2.9.*
 alembic==1.19.*
 pydantic==2.13.*
-pydantic-settings==2.14.*
+pydantic-settings==2.15.*
 python-jose[cryptography]==3.5.*
 passlib[bcrypt]==1.7.*
 python-multipart==0.0.*
