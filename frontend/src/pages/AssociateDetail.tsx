@@ -40,7 +40,7 @@ export default function AssociateDetail() {
       associatesApi.summary(aid),
       currentAccountsApi.movements(aid).catch(() => []),
       authApi.me().catch(() => null),
-      budgetApi.listFundCalls(new Date().getFullYear()).catch(() => []),
+      budgetApi.getFundCalls(new Date().getFullYear()).catch(() => []),
     ]).then(([assoc, s, m, me, fCalls]) => {
       setAssociate(assoc);
       setSummary(s);

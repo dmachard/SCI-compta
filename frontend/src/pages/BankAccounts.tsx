@@ -80,7 +80,7 @@ export default function BankAccounts() {
       associatesApi.list(),
       authApi.me().catch(() => null),
       budgetApi.getSummary(new Date().getFullYear()).catch(() => null),
-      budgetApi.listFundCalls(new Date().getFullYear()).catch(() => []),
+      budgetApi.getFundCalls(new Date().getFullYear()).catch(() => []),
     ])
       .then(([accs, txs, assocs, me, bSummary, fCalls]) => {
         setAccounts(accs);
