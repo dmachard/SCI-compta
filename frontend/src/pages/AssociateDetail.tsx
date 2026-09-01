@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, Wallet, Landmark, FileText, ArrowUpRight, ArrowDownRight, Pencil, Check, X as XIcon, Key, ShieldCheck, Trash2 } from 'lucide-react';
-import { associatesApi, authApi, currentAccountsApi } from '../api';
-import type { Associate, AssociateSummary, CurrentAccountMovement, User } from '../types';
+import { associatesApi, authApi, currentAccountsApi, budgetApi } from '../api';
+import type { Associate, AssociateSummary, CurrentAccountMovement, User, FundCall } from '../types';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -19,6 +19,7 @@ export default function AssociateDetail() {
   const [associate, setAssociate] = useState<Associate | null>(null);
   const [summary, setSummary] = useState<AssociateSummary | null>(null);
   const [movements, setMovements] = useState<CurrentAccountMovement[]>([]);
+  const [fundCalls, setFundCalls] = useState<FundCall[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', email: '', shares: 0 });
@@ -39,12 +40,14 @@ export default function AssociateDetail() {
       associatesApi.summary(aid),
       currentAccountsApi.movements(aid).catch(() => []),
       authApi.me().catch(() => null),
-    ]).then(([assoc, s, m, me]) => {
+      budgetApi.listFundCalls(new Date().getFullYear()).catch(() => []),
+    ]).then(([assoc, s, m, me, fCalls]) => {
       setAssociate(assoc);
       setSummary(s);
       setEditForm({ first_name: s.first_name, last_name: s.last_name, email: assoc.email || '', shares: s.shares });
       setMovements(m);
       setCurrentUser(me);
+      if (fCalls) setFundCalls(fCalls);
       setLoading(false);
     });
   }
@@ -212,26 +215,30 @@ export default function AssociateDetail() {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500 mb-2">
             <Wallet size={18} className="text-emerald-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Compte courant d'associé</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Compte courant d'associé (CCA)</span>
           </div>
           <p className="text-2xl font-black text-emerald-600">
             {fmt(summary.current_account_balance)}
           </p>
           <p className="text-xs text-slate-500 mt-1 font-medium">
-            Total versé : {fmt(summary.total_paid_current_account)}
+            Avances remboursables dues par la SCI
           </p>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="flex items-center gap-2 text-slate-500 mb-2">
             <FileText size={18} className="text-blue-600" />
-            <span className="text-xs font-bold uppercase tracking-wider">Appels de fonds</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Appels de fonds charges</span>
           </div>
           <p className="text-2xl font-black text-slate-900">
             {fmt(summary.total_fund_calls_paid)}
           </p>
           <p className="text-xs text-slate-500 mt-1 font-medium">
-            Régularisé auprès de la SCI
+            {summary.fund_calls_remaining > 0 ? (
+              <span className="text-amber-600 font-bold">Reste dû : {fmt(summary.fund_calls_remaining)}</span>
+            ) : (
+              <span className="text-emerald-600 font-medium">À jour des charges courantes</span>
+            )}
           </p>
         </div>
       </div>
@@ -337,6 +344,81 @@ export default function AssociateDetail() {
             Aucun versement enregistré pour cet associé pour le moment.
           </div>
         )}
+      </div>
+
+      {/* Historique des appels de fonds de l'associé */}
+      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="font-extrabold text-slate-900 text-base">Appels de fonds & Contributions aux charges courantes</h2>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Ces versements participent au financement des charges de la SCI et ne constituent pas une avance remboursable (hors CCA).
+          </p>
+        </div>
+        {(() => {
+          const assocLines = fundCalls.flatMap(fc => {
+            const line = fc.lines.find(l => l.associate_id === Number(id));
+            if (!line) return [];
+            return [{ call: fc, line }];
+          });
+
+          if (assocLines.length === 0) {
+            return (
+              <div className="px-6 py-12 text-center text-slate-500 text-sm font-medium">
+                Aucun appel de fonds émis pour cet associé.
+              </div>
+            );
+          }
+
+          return (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
+                  <tr>
+                    <th className="py-3.5 px-6">Date de l'appel</th>
+                    <th className="py-3.5 px-6">N° / Objet</th>
+                    <th className="py-3.5 px-6 text-right">Montant appelé</th>
+                    <th className="py-3.5 px-6 text-right">Montant réglé</th>
+                    <th className="py-3.5 px-6 text-center">Statut</th>
+                    <th className="py-3.5 px-6 text-right">Date de règlement</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {assocLines.map(({ call, line }) => (
+                    <tr key={line.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 px-6 text-slate-600 text-xs font-semibold">
+                        {new Date(call.call_date).toLocaleDateString('fr-FR')}
+                      </td>
+                      <td className="py-3.5 px-6">
+                        <span className="font-bold text-slate-900 block text-xs">{call.call_number || `Appel #${call.id}`}</span>
+                        <span className="text-xs text-slate-500 font-medium">{call.purpose}</span>
+                      </td>
+                      <td className="py-3.5 px-6 text-right font-mono font-bold text-slate-900 text-xs">
+                        {fmt(line.amount_due)}
+                      </td>
+                      <td className="py-3.5 px-6 text-right font-mono font-bold text-emerald-600 text-xs">
+                        {fmt(line.amount_paid)}
+                      </td>
+                      <td className="py-3.5 px-6 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
+                          line.is_paid
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : line.amount_paid > 0
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}>
+                          {line.is_paid ? 'Soldé' : line.amount_paid > 0 ? 'Partiel' : 'En attente'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-6 text-right text-xs text-slate-600 font-medium">
+                        {line.payment_date ? new Date(line.payment_date).toLocaleDateString('fr-FR') : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Modal d'accès utilisateur pour l'associé */}

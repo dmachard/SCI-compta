@@ -320,6 +320,7 @@ class BankTransactionResponse(BaseModel):
     notes: str
     imported_at: datetime
     budget_item_id: int | None = None
+    fund_call_line_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -332,6 +333,7 @@ class ReconcileRequest(BaseModel):
     notes: str | None = None
     reconciliation_status: str | None = "rapprochee"
     budget_item_id: int | None = None
+    fund_call_line_id: int | None = None
 
 
 class ImportCSVResponse(BaseModel):
@@ -461,6 +463,7 @@ class FundCallCreate(BaseModel):
     call_date: date
     due_date: date | None = None
     purpose: str = "Financement des charges et dépenses courantes de la SCI"
+    call_type: str = "charges"
     selected_item_ids: list[int]
 
 
@@ -495,6 +498,7 @@ class FundCallResponse(BaseModel):
     call_date: date
     due_date: date | None
     purpose: str
+    call_type: str = "charges"
     total_amount: float
     amount_paid: float
     amount_remaining: float

@@ -171,4 +171,29 @@ describe('Overview Component', () => {
     expect(screen.getByText("Classer l'opération")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Valider le classement/i })).toBeInTheDocument();
   });
+
+  it('shows distinct CCA and Règlement appel de fonds options when associate is selected', async () => {
+    render(
+      <MemoryRouter>
+        <Overview />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Assurance Immo/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const categorizeButtons = screen.getAllByRole('button', { name: /Catégoriser/i });
+    fireEvent.click(categorizeButtons[0]);
+
+    // Cliquer sur le bouton "Associé"
+    const assocButton = screen.getByRole('button', { name: /Associé/i });
+    fireEvent.click(assocButton);
+
+    // Vérifier les options de la liste déroulante d'affectation
+    expect(screen.getByText(/Compte courant d'associé \(Avance remboursable\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Règlement appel de fonds \(Charges courantes\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/Apport au capital social/i)).toBeInTheDocument();
+  });
 });
+

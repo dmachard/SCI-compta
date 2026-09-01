@@ -203,6 +203,7 @@ export interface BankTransaction {
   notes: string;
   imported_at: string;
   budget_item_id?: number | null;
+  fund_call_line_id?: number | null;
 }
 
 export interface ReconcileRequest {
@@ -213,6 +214,7 @@ export interface ReconcileRequest {
   notes?: string;
   reconciliation_status?: string;
   budget_item_id?: number | null;
+  fund_call_line_id?: number | null;
 }
 
 export interface ImportCSVResponse {
@@ -318,6 +320,7 @@ export interface FundCall {
   call_date: string;
   due_date: string | null;
   purpose: string;
+  call_type?: string;
   total_amount: number;
   amount_paid: number;
   amount_remaining: number;
@@ -332,6 +335,7 @@ export interface FundCallCreateRequest {
   call_date: string;
   due_date?: string;
   purpose: string;
+  call_type?: string;
   selected_item_ids: number[];
 }
 
