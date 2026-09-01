@@ -457,7 +457,7 @@ export default function Overview() {
     globalActions.length;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-4xl mx-auto px-3.5 sm:px-8 py-5 sm:py-8 space-y-6 sm:space-y-8 animate-fade-in">
       <input
         type="file"
         ref={fileInputRef}
@@ -467,11 +467,11 @@ export default function Overview() {
       />
 
       {/* En-tête épuré */}
-      <div className="pb-6 border-b border-border">
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+      <div className="pb-5 sm:pb-6 border-b border-border">
+        <h1 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight">
           Ce qui est à faire
         </h1>
-        <p className="text-sm text-slate-500 mt-1.5">
+        <p className="text-xs sm:text-sm text-slate-500 mt-1 sm:mt-1.5">
           {totalPending === 0
             ? 'Toutes les écritures et formalités sont à jour.'
             : `${totalPending} action${totalPending > 1 ? 's' : ''} à faire. Cliquez sur le bouton d'une ligne pour la régler directement.`}
@@ -484,38 +484,38 @@ export default function Overview() {
           <p className="text-sm font-medium">Analyse des écritures en cours...</p>
         </div>
       ) : totalPending === 0 ? (
-        <div className="p-10 text-center bg-white border border-emerald-200 rounded-3xl shadow-xs space-y-3">
+        <div className="p-8 sm:p-10 text-center bg-white border border-emerald-200 rounded-3xl shadow-xs space-y-3">
           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
             <CheckCheck className="w-7 h-7 stroke-[2.5]" />
           </div>
           <h2 className="text-lg font-black text-slate-900">
             Rien à faire, tout est à jour !
           </h2>
-          <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
             Vos opérations sont classées, vos justificatifs sont attachés et vos virements sont validés.
           </p>
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           {/* 1. OPÉRATIONS BANCAIRES À CATÉGORISER (LIGNE PAR LIGNE) */}
           {txsToReconcile.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="space-y-2.5 sm:space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
                     <Tag className="w-4 h-4" />
                   </div>
                   <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
                     Opérations bancaires à catégoriser
                   </h2>
-                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 shrink-0">
                     {txsToReconcile.length}
                   </span>
                 </div>
 
                 <Link
                   to="/banque"
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors self-end sm:self-auto"
                 >
                   <span>Ouvrir la banque</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -529,33 +529,37 @@ export default function Overview() {
                   return (
                     <div
                       key={tx.id}
-                      className="group flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
+                      className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors"
                     >
-                      <span className="text-xs font-bold text-slate-400 w-14 shrink-0">
-                        {formatDate(tx.transaction_date)}
-                      </span>
+                      <div className="flex items-start sm:items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                        <span className="text-xs font-bold text-slate-400 w-12 sm:w-14 shrink-0 pt-0.5 sm:pt-0">
+                          {formatDate(tx.transaction_date)}
+                        </span>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-800 truncate" title={tx.original_label}>
-                          {tx.third_party || tx.original_label}
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-800 break-words sm:truncate" title={tx.original_label}>
+                            {tx.third_party || tx.original_label}
+                          </p>
+                        </div>
                       </div>
 
-                      <span
-                        className={`text-sm font-black tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg ${
-                          isCredit ? 'text-emerald-700 bg-emerald-50/60' : 'text-slate-800 bg-slate-50'
-                        }`}
-                      >
-                        {isCredit ? `+${fmt(Number(tx.amount))}` : fmt(Number(tx.amount))}
-                      </span>
+                      <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 shrink-0 pl-14 sm:pl-0">
+                        <span
+                          className={`text-sm font-black tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg ${
+                            isCredit ? 'text-emerald-700 bg-emerald-50/60' : 'text-slate-800 bg-slate-50'
+                          }`}
+                        >
+                          {isCredit ? `+${fmt(Number(tx.amount))}` : fmt(Number(tx.amount))}
+                        </span>
 
-                      <button
-                        type="button"
-                        onClick={() => openReconcileModal(tx)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
-                      >
-                        <span>Catégoriser</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => openReconcileModal(tx)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
+                        >
+                          <span>Catégoriser</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -565,23 +569,23 @@ export default function Overview() {
 
           {/* 2. VIREMENTS D'APPELS DE FONDS ATTENDUS (LIGNE PAR LIGNE PAR ASSOCIÉ) */}
           {unpaidFundCallLines.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <div className="space-y-2.5 sm:space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
                     <Users className="w-4 h-4" />
                   </div>
                   <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
                     Virements d'associés attendus (appels de fonds)
                   </h2>
-                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 shrink-0">
                     {unpaidFundCallLines.length}
                   </span>
                 </div>
 
                 <Link
                   to="/budget"
-                  className="text-xs font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 transition-colors"
+                  className="text-xs font-bold text-amber-700 hover:text-amber-900 flex items-center gap-1 transition-colors self-end sm:self-auto"
                 >
                   <span>Voir le budget</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -595,11 +599,11 @@ export default function Overview() {
                   return (
                     <div
                       key={`fundcall-${callId}-${line.id}`}
-                      className="group flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
+                      className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors"
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-bold text-slate-900 truncate">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-bold text-slate-900">
                             {line.associate_name}
                           </p>
                           <span className="text-[11px] font-semibold text-slate-400">
@@ -611,17 +615,19 @@ export default function Overview() {
                         </p>
                       </div>
 
-                      <span className="text-sm font-black text-amber-700 tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg bg-amber-50/60">
-                        {fmt(remaining)}
-                      </span>
+                      <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 shrink-0">
+                        <span className="text-sm font-black text-amber-700 tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg bg-amber-50/60">
+                          {fmt(remaining)}
+                        </span>
 
-                      <button
-                        type="button"
-                        onClick={() => openPointingModal({ callId, callNumber, line })}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-600 hover:text-white rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
-                      >
-                        <span>Marquer comme reçu</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => openPointingModal({ callId, callNumber, line })}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-600 hover:text-white rounded-lg transition-all shrink-0 cursor-pointer shadow-2xs"
+                        >
+                          <span>Marquer comme reçu</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -631,23 +637,23 @@ export default function Overview() {
 
           {/* 3. JUSTIFICATIFS / FACTURES MANQUANTES (LIGNE PAR LIGNE) */}
           {expensesMissingDocs.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <div className="space-y-2.5 sm:space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2 px-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                     <Receipt className="w-4 h-4" />
                   </div>
                   <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
                     Factures / Justificatifs à ajouter
                   </h2>
-                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                  <span className="text-xs font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 shrink-0">
                     {expensesMissingDocs.length}
                   </span>
                 </div>
 
                 <Link
                   to="/documents"
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors"
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors self-end sm:self-auto"
                 >
                   <span>Tous les documents</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -661,36 +667,40 @@ export default function Overview() {
                   return (
                     <div
                       key={tx.id}
-                      className="group flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
+                      className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors"
                     >
-                      <span className="text-xs font-bold text-slate-400 w-14 shrink-0">
-                        {formatDate(tx.transaction_date)}
-                      </span>
+                      <div className="flex items-start sm:items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
+                        <span className="text-xs font-bold text-slate-400 w-12 sm:w-14 shrink-0 pt-0.5 sm:pt-0">
+                          {formatDate(tx.transaction_date)}
+                        </span>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-800 truncate" title={tx.original_label}>
-                          Facture pour <span className="font-bold text-slate-900">{tx.third_party || tx.original_label}</span>
-                        </p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-slate-800 break-words sm:truncate" title={tx.original_label}>
+                            Facture pour <span className="font-bold text-slate-900">{tx.third_party || tx.original_label}</span>
+                          </p>
+                        </div>
                       </div>
 
-                      <span className="text-sm font-black text-slate-800 tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg bg-slate-50">
-                        {fmt(Math.abs(Number(tx.amount)))}
-                      </span>
+                      <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 shrink-0 pl-14 sm:pl-0">
+                        <span className="text-sm font-black text-slate-800 tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg bg-slate-50">
+                          {fmt(Math.abs(Number(tx.amount)))}
+                        </span>
 
-                      <button
-                        type="button"
-                        onClick={() => handleDirectUploadClick(tx)}
-                        disabled={isUploading}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-lg transition-all shrink-0 cursor-pointer disabled:opacity-50 shadow-2xs"
-                        title="Sélectionner le PDF de la facture"
-                      >
-                        {isUploading ? (
-                          <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <Upload className="w-3.5 h-3.5" />
-                        )}
-                        <span>{isUploading ? 'Envoi...' : 'Joindre PDF'}</span>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDirectUploadClick(tx)}
+                          disabled={isUploading}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-lg transition-all shrink-0 cursor-pointer disabled:opacity-50 shadow-2xs"
+                          title="Sélectionner le PDF de la facture"
+                        >
+                          {isUploading ? (
+                            <div className="w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          <span>{isUploading ? 'Envoi...' : 'Joindre PDF'}</span>
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -700,15 +710,15 @@ export default function Overview() {
 
           {/* 4. COMPTES COURANTS DÉBITEURS (LIGNE PAR LIGNE PAR ASSOCIÉ) */}
           {negativeCcaList.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2.5 px-1">
-                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+            <div className="space-y-2.5 sm:space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
                   <Building2 className="w-4 h-4" />
                 </div>
                 <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
                   Comptes courants débiteurs à régulariser
                 </h2>
-                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
+                <span className="text-xs font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 shrink-0">
                   {negativeCcaList.length}
                 </span>
               </div>
@@ -717,7 +727,7 @@ export default function Overview() {
                 {negativeCcaList.map((c) => (
                   <div
                     key={`cca-${c.associate_id}`}
-                    className="group flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
+                    className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-slate-900">
@@ -728,17 +738,19 @@ export default function Overview() {
                       </p>
                     </div>
 
-                    <span className="text-sm font-black text-rose-600 tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg bg-rose-50">
-                      {fmt(Number(c.balance))}
-                    </span>
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 sm:gap-3 shrink-0">
+                      <span className="text-sm font-black text-rose-600 tabular-nums shrink-0 px-2.5 py-0.5 rounded-lg bg-rose-50">
+                        {fmt(Number(c.balance))}
+                      </span>
 
-                    <Link
-                      to={`/associes/${c.associate_id}`}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg transition-all shrink-0 shadow-2xs"
-                    >
-                      <span>Voir associé</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                      <Link
+                        to={`/associes/${c.associate_id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-600 hover:text-white rounded-lg transition-all shrink-0 shadow-2xs"
+                      >
+                        <span>Voir associé</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -747,9 +759,9 @@ export default function Overview() {
 
           {/* 5. AUTRES ACTIONS PONCTUELLES (BILAN D'AG, BUDGET...) */}
           {globalActions.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2.5 px-1">
-                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <div className="space-y-2.5 sm:space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
                   <CalendarCheck className="w-4 h-4" />
                 </div>
                 <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
@@ -761,24 +773,26 @@ export default function Overview() {
                 {globalActions.map((item) => (
                   <div
                     key={item.id}
-                    className="group flex items-center gap-3.5 px-4 py-3.5 hover:bg-slate-50/80 transition-colors"
+                    className="group flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3.5 px-3.5 sm:px-4 py-3 sm:py-3.5 hover:bg-slate-50/80 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-slate-900 leading-snug">
                         {item.title}
                       </p>
-                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed truncate">
+                      <p className="text-xs text-slate-500 mt-0.5 leading-relaxed break-words sm:truncate">
                         {item.desc}
                       </p>
                     </div>
 
-                    <Link
-                      to={item.url}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-600 hover:text-white rounded-lg transition-all shrink-0 shadow-2xs"
-                    >
-                      <span>{item.btn}</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    <div className="flex items-center justify-end shrink-0">
+                      <Link
+                        to={item.url}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-600 hover:text-white rounded-lg transition-all shrink-0 shadow-2xs"
+                      >
+                        <span>{item.btn}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -789,9 +803,9 @@ export default function Overview() {
 
       {/* ─── MODAL DIRECTE DE CLASSEMENT D'OPÉRATION ─── */}
       {reconcilingTx && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in">
+          <div className="bg-white border border-slate-200 w-full max-w-md max-h-[92vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <h3 className="font-extrabold text-base text-slate-900">
                 Classer l'opération
               </h3>
@@ -803,7 +817,7 @@ export default function Overview() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveReconcile} className="p-6 space-y-4">
+            <form onSubmit={handleSaveReconcile} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
                 <div className="flex items-center justify-between mb-1 text-xs">
                   <span className="text-slate-500 font-medium">{formatDate(reconcilingTx.transaction_date)}</span>
@@ -960,9 +974,9 @@ export default function Overview() {
 
       {/* ─── MODAL DIRECTE DE POINTAGE D'APPEL DE FONDS ─── */}
       {pointingLine && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white border border-slate-200 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 animate-fade-in">
+          <div className="bg-white border border-slate-200 w-full max-w-md max-h-[92vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden">
+            <div className="px-5 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 shrink-0">
               <h3 className="font-extrabold text-base text-slate-900">
                 Confirmer la réception du paiement
               </h3>
@@ -974,7 +988,7 @@ export default function Overview() {
               </button>
             </div>
 
-            <form onSubmit={handleSavePointing} className="p-6 space-y-4">
+            <form onSubmit={handleSavePointing} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
               <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200/70">
                 <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">
                   {pointingLine.callNumber}
