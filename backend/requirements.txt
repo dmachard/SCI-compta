@@ -9,5 +9,5 @@ python-jose[cryptography]==3.3.*
 passlib[bcrypt]==1.7.*
 python-multipart==0.0.*
 pandas==3.0.*
-pytest==8.3.*
+pytest==9.1.*
 httpx==0.28.*
