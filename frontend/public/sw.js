@@ -1,7 +1,5 @@
 const CACHE_NAME = 'sci-compta-__SW_VERSION__';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.webmanifest',
   '/logo.svg',
   '/favicon.png',
@@ -11,7 +9,7 @@ const STATIC_ASSETS = [
   '/apple-touch-icon.png',
 ];
 
-// Installation du Service Worker : mise en cache du shell applicatif
+// Installation du Service Worker : mise en cache des assets statiques purs (icônes/manifest)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -23,7 +21,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activation : nettoyage des anciens caches
+// Activation : nettoyage immédiat et systématique des anciens caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -43,46 +41,42 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 1. NE JAMAIS mettre en cache les requêtes API (temps réel financier strict)
+  // 1. NE JAMAIS intercepter ni mettre en cache les requêtes API (données fraîches impératives)
   if (url.pathname.startsWith('/api/')) {
-    return; // Laisser passer directement au réseau
+    return;
   }
 
-  // 2. Navigation HTML (Single Page Application)
+  // 2. Navigation HTML (SPA) : toujours réseau en priorité, pas de cache stale
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
-        return caches.match('/index.html') || caches.match('/');
+        return caches.match('/index.html');
       })
     );
     return;
   }
 
-  // 3. Assets statiques (Stale-While-Revalidate)
+  // 3. Assets statiques immuables (images / polices uniquement)
+  // Note : les scripts JS et styles CSS sont gérés directement par Nginx avec leurs hashs Vite
   if (
     event.request.method === 'GET' &&
-    (url.pathname.startsWith('/assets/') ||
-      url.pathname.endsWith('.js') ||
-      url.pathname.endsWith('.css') ||
-      url.pathname.endsWith('.png') ||
+    (url.pathname.endsWith('.png') ||
       url.pathname.endsWith('.svg') ||
       url.pathname.endsWith('.woff2') ||
       url.hostname.includes('fonts.gstatic.com'))
   ) {
     event.respondWith(
-      caches.open(CACHE_NAME).then((cache) => {
-        return cache.match(event.request).then((cachedResponse) => {
-          const fetchPromise = fetch(event.request)
-            .then((networkResponse) => {
-              if (networkResponse && networkResponse.status === 200) {
-                cache.put(event.request, networkResponse.clone());
-              }
-              return networkResponse;
-            })
-            .catch(() => cachedResponse);
-
-          return cachedResponse || fetchPromise;
-        });
+      caches.match(event.request).then((cached) => {
+        return (
+          cached ||
+          fetch(event.request).then((response) => {
+            if (response && response.status === 200) {
+              const clone = response.clone();
+              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            }
+            return response;
+          })
+        );
       })
     );
   }

@@ -11,7 +11,9 @@ import {
   CreditCard,
   CheckCheck,
   X,
-  UserCheck
+  UserCheck,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import {
   bankApi,
@@ -73,6 +75,18 @@ export default function Overview() {
   const currentYear = new Date().getFullYear();
 
   const [loading, setLoading] = useState(true);
+  const [syncError, setSyncError] = useState(false);
+  const [loadedSections, setLoadedSections] = useState({
+    sci: false,
+    accounts: false,
+    txs: false,
+    associates: false,
+    cca: false,
+    fiscalYears: false,
+    budget: false,
+    fundCalls: false,
+    docs: false,
+  });
 
   // Données de la SCI
   const [sci, setSci] = useState<SCI | null>(null);
@@ -124,30 +138,90 @@ export default function Overview() {
         fyRes,
         budgetRes,
         fundsRes,
-        docsRes
-      ] = await Promise.all([
-        sciApi.get().catch(() => null),
-        bankApi.getAccounts().catch(() => []),
-        bankApi.getTransactions().catch(() => []),
-        associatesApi.list().catch(() => []),
-        currentAccountsApi.balances().catch(() => []),
-        fiscalYearsApi.list().catch(() => []),
-        budgetApi.getSummary(currentYear).catch(() => null),
-        budgetApi.getFundCalls(currentYear).catch(() => []),
-        documentsApi.list().catch(() => [])
+        docsRes,
+      ] = await Promise.allSettled([
+        sciApi.get(),
+        bankApi.getAccounts(),
+        bankApi.getTransactions(),
+        associatesApi.list(),
+        currentAccountsApi.balances(),
+        fiscalYearsApi.list(),
+        budgetApi.getSummary(currentYear),
+        budgetApi.getFundCalls(currentYear),
+        documentsApi.list(),
       ]);
 
-      setSci(sciRes);
-      setBankAccounts(accountsRes);
-      setTransactions(txsRes);
-      setAssociates(assocsRes);
-      setCcaBalances(ccaRes);
-      setFiscalYears(fyRes);
-      setBudgetSummary(budgetRes);
-      setFundCalls(fundsRes);
-      setDocuments(docsRes);
+      let hasError = false;
+
+      if (sciRes.status === 'fulfilled') {
+        setSci(sciRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (accountsRes.status === 'fulfilled') {
+        setBankAccounts(accountsRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (txsRes.status === 'fulfilled') {
+        setTransactions(txsRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (assocsRes.status === 'fulfilled') {
+        setAssociates(assocsRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (ccaRes.status === 'fulfilled') {
+        setCcaBalances(ccaRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (fyRes.status === 'fulfilled') {
+        setFiscalYears(fyRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (budgetRes.status === 'fulfilled') {
+        setBudgetSummary(budgetRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (fundsRes.status === 'fulfilled') {
+        setFundCalls(fundsRes.value);
+      } else {
+        hasError = true;
+      }
+
+      if (docsRes.status === 'fulfilled') {
+        setDocuments(docsRes.value);
+      } else {
+        hasError = true;
+      }
+
+      setSyncError(hasError);
+      setLoadedSections({
+        sci: sciRes.status === 'fulfilled',
+        accounts: accountsRes.status === 'fulfilled',
+        txs: txsRes.status === 'fulfilled',
+        associates: assocsRes.status === 'fulfilled',
+        cca: ccaRes.status === 'fulfilled',
+        fiscalYears: fyRes.status === 'fulfilled',
+        budget: budgetRes.status === 'fulfilled',
+        fundCalls: fundsRes.status === 'fulfilled',
+        docs: docsRes.status === 'fulfilled',
+      });
     } catch (e) {
       console.error('Erreur chargement données:', e);
+      setSyncError(true);
     } finally {
       setLoading(false);
     }
@@ -211,8 +285,8 @@ export default function Overview() {
       btn: string;
     }> = [];
 
-    // Configuration légale de la SCI incomplète
-    if (sci && (!sci.siren || !sci.address)) {
+    // Configuration légale de la SCI incomplète (uniquement si SCI chargée avec succès)
+    if (loadedSections.sci && sci && (!sci.siren || !sci.address)) {
       list.push({
         id: 'global-sci-config',
         title: 'Compléter la configuration de la SCI (SIREN, adresse)',
@@ -222,8 +296,8 @@ export default function Overview() {
       });
     }
 
-    // Aucun associé enregistré
-    if (associates.length === 0) {
+    // Aucun associé enregistré (uniquement si le chargement a réussi et confirmé 0 associé)
+    if (loadedSections.associates && associates.length === 0) {
       list.push({
         id: 'global-associates-needed',
         title: 'Enregistrer les associés de la SCI',
@@ -233,93 +307,103 @@ export default function Overview() {
       });
     }
 
-    // Aucun exercice comptable pour l'année en cours
-    const currentFy = fiscalYears.find((fy) =>
-      fy.label.includes(String(currentYear)) ||
-      (fy.start_date && fy.start_date.startsWith(String(currentYear)))
-    );
-    if (!currentFy) {
-      list.push({
-        id: 'global-fy-needed',
-        title: `Ouvrir l'exercice comptable de l'année ${currentYear}`,
-        desc: `Créez l’exercice ${currentYear} pour enregistrer les opérations de cette année.`,
-        url: '/exercices',
-        btn: 'Créer l’exercice',
-      });
-    }
-
-    // Aucun compte bancaire configuré
-    if (bankAccounts.length === 0) {
-      list.push({
-        id: 'global-no-account',
-        title: 'Ajouter le compte bancaire de la SCI',
-        desc: 'Indiquez le compte bancaire pour démarrer le suivi.',
-        url: '/banque',
-        btn: 'Ajouter le compte',
-      });
-    } else if (transactions.length === 0) {
-      list.push({
-        id: 'global-import-first',
-        title: 'Importer votre premier relevé bancaire (CSV)',
-        desc: 'Téléversez le relevé de votre banque.',
-        url: '/banque',
-        btn: 'Importer relevé',
-      });
-    } else {
-      const sorted = [...transactions].sort(
-        (a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+    // Aucun exercice comptable pour l'année en cours (uniquement si les exercices ont été chargés)
+    if (loadedSections.fiscalYears) {
+      const currentFy = fiscalYears.find((fy) =>
+        fy.label.includes(String(currentYear)) ||
+        (fy.start_date && fy.start_date.startsWith(String(currentYear)))
       );
-      const lastDate = new Date(sorted[0].transaction_date);
-      const diffDays = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 3600 * 24));
-      if (diffDays > 30) {
+      if (!currentFy) {
         list.push({
-          id: 'global-import-recent',
-          title: `Mettre à jour le relevé bancaire (dernier mouvement il y a ${diffDays} jours)`,
-          desc: 'Intégrez les dernières lignes bancaires.',
-          url: '/banque',
-          btn: 'Importer relevé',
+          id: 'global-fy-needed',
+          title: `Ouvrir l'exercice comptable de l'année ${currentYear}`,
+          desc: `Créez l’exercice ${currentYear} pour enregistrer les opérations de cette année.`,
+          url: '/exercices',
+          btn: 'Créer l’exercice',
         });
       }
     }
 
-    // Budget prévisionnel de l'année en cours non créé
-    if (!budgetSummary || !budgetSummary.items || budgetSummary.items.length === 0) {
-      list.push({
-        id: 'global-budget-needed',
-        title: `Établir le budget prévisionnel de l'année ${currentYear}`,
-        desc: 'Prévoyez les dépenses de l’année pour calculer les quotes-parts.',
-        url: '/budget',
-        btn: 'Créer le budget',
-      });
-    } else if (fundCalls.length === 0) {
-      list.push({
-        id: 'global-fundcall-needed',
-        title: `Lancer l'appel de fonds pour l'année ${currentYear}`,
-        desc: 'Un budget est configuré mais aucun appel de fonds n’a encore été émis.',
-        url: '/budget',
-        btn: 'Faire l’appel',
-      });
+    // Aucun compte bancaire configuré (uniquement si les comptes ont été chargés)
+    if (loadedSections.accounts) {
+      if (bankAccounts.length === 0) {
+        list.push({
+          id: 'global-no-account',
+          title: 'Ajouter le compte bancaire de la SCI',
+          desc: 'Indiquez le compte bancaire pour démarrer le suivi.',
+          url: '/banque',
+          btn: 'Ajouter le compte',
+        });
+      } else if (loadedSections.txs && transactions.length === 0) {
+        list.push({
+          id: 'global-import-first',
+          title: 'Importer votre premier relevé bancaire (CSV)',
+          desc: 'Téléversez le relevé de votre banque.',
+          url: '/banque',
+          btn: 'Importer relevé',
+        });
+      } else if (loadedSections.txs) {
+        const sorted = [...transactions].sort(
+          (a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+        );
+        if (sorted.length > 0) {
+          const lastDate = new Date(sorted[0].transaction_date);
+          const diffDays = Math.floor((Date.now() - lastDate.getTime()) / (1000 * 3600 * 24));
+          if (diffDays > 30) {
+            list.push({
+              id: 'global-import-recent',
+              title: `Mettre à jour le relevé bancaire (dernier mouvement il y a ${diffDays} jours)`,
+              desc: 'Intégrez les dernières lignes bancaires.',
+              url: '/banque',
+              btn: 'Importer relevé',
+            });
+          }
+        }
+      }
     }
 
-    // Clôture des exercices passés et bilan d'AG
-    const pastOpenFys = fiscalYears.filter((fy) =>
-      fy.status !== 'clos' && (
-        (fy.end_date && new Date(fy.end_date) < new Date()) ||
-        (fy.label && parseInt(fy.label.match(/\d{4}/)?.[0] || '9999') < currentYear)
-      )
-    );
-    for (const pastFy of pastOpenFys) {
-      list.push({
-        id: `global-close-fy-${pastFy.id}`,
-        title: `Faire le bilan d'AG et clôturer l'exercice ${pastFy.label}`,
-        desc: 'L’exercice est terminé : préparez les comptes annuels et le procès-verbal d’Assemblée Générale.',
-        url: '/exercices',
-        btn: 'Faire le bilan',
-      });
+    // Budget prévisionnel de l'année en cours non créé (uniquement si le budget a été chargé)
+    if (loadedSections.budget) {
+      if (!budgetSummary || !budgetSummary.items || budgetSummary.items.length === 0) {
+        list.push({
+          id: 'global-budget-needed',
+          title: `Établir le budget prévisionnel de l'année ${currentYear}`,
+          desc: 'Prévoyez les dépenses de l’année pour calculer les quotes-parts.',
+          url: '/budget',
+          btn: 'Créer le budget',
+        });
+      } else if (loadedSections.fundCalls && fundCalls.length === 0) {
+        list.push({
+          id: 'global-fundcall-needed',
+          title: `Lancer l'appel de fonds pour l'année ${currentYear}`,
+          desc: 'Un budget est configuré mais aucun appel de fonds n’a encore été émis.',
+          url: '/budget',
+          btn: 'Faire l’appel',
+        });
+      }
+    }
+
+    // Clôture des exercices passés et bilan d'AG (uniquement si les exercices ont été chargés)
+    if (loadedSections.fiscalYears) {
+      const pastOpenFys = fiscalYears.filter((fy) =>
+        fy.status !== 'clos' && (
+          (fy.end_date && new Date(fy.end_date) < new Date()) ||
+          (fy.label && parseInt(fy.label.match(/\d{4}/)?.[0] || '9999') < currentYear)
+        )
+      );
+      for (const pastFy of pastOpenFys) {
+        list.push({
+          id: `global-close-fy-${pastFy.id}`,
+          title: `Faire le bilan d'AG et clôturer l'exercice ${pastFy.label}`,
+          desc: 'L’exercice est terminé : préparez les comptes annuels et le procès-verbal d’Assemblée Générale.',
+          url: '/exercices',
+          btn: 'Faire le bilan',
+        });
+      }
     }
 
     return list;
-  }, [sci, associates, bankAccounts, transactions, budgetSummary, fundCalls, fiscalYears, currentYear]);
+  }, [sci, associates, bankAccounts, transactions, budgetSummary, fundCalls, fiscalYears, currentYear, loadedSections]);
 
   // Ouverture de la modale de classement direct pour une opération
   const openReconcileModal = (tx: BankTransaction) => {
@@ -477,6 +561,23 @@ export default function Overview() {
             : `${totalPending} action${totalPending > 1 ? 's' : ''} à faire. Cliquez sur le bouton d'une ligne pour la régler directement.`}
         </p>
       </div>
+
+      {syncError && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 bg-amber-50 border border-amber-200/80 rounded-2xl text-xs sm:text-sm text-amber-900 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+            <span className="font-medium">Certaines données n'ont pas pu être synchronisées avec le serveur.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadData()}
+            className="self-end sm:self-auto px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition-colors text-xs cursor-pointer flex items-center gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Réessayer</span>
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="py-20 text-center text-slate-400">

@@ -6,7 +6,7 @@ import pkg from './package.json'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const appVersion = process.env.VITE_APP_VERSION || `v${pkg.version}`
+const appVersion = process.env.VITE_APP_VERSION || `v${pkg.version}-${Date.now()}`
 
 function swVersionPlugin(): Plugin {
   return {

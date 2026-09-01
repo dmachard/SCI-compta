@@ -195,5 +195,29 @@ describe('Overview Component', () => {
     expect(screen.getByText(/Règlement appel de fonds \(Charges courantes\)/i)).toBeInTheDocument();
     expect(screen.getByText(/Apport au capital social/i)).toBeInTheDocument();
   });
+
+  it('does not show false onboarding actions if API calls fail, and displays sync error banner', async () => {
+    vi.spyOn(api.associatesApi, 'list').mockRejectedValue(new Error('Network error'));
+    vi.spyOn(api.fiscalYearsApi, 'list').mockRejectedValue(new Error('Network error'));
+    vi.spyOn(api.bankApi, 'getAccounts').mockRejectedValue(new Error('Network error'));
+    vi.spyOn(api.budgetApi, 'getSummary').mockRejectedValue(new Error('Network error'));
+
+    render(
+      <MemoryRouter>
+        <Overview />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Certaines données n'ont pas pu être synchronisées/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Réessayer/i })).toBeInTheDocument();
+    });
+
+    // Ne doit SURTOUT PAS afficher les actions de fausse configuration
+    expect(screen.queryByText('Enregistrer les associés de la SCI')).not.toBeInTheDocument();
+    expect(screen.queryByText("Ouvrir l'exercice comptable de l'année 2026")).not.toBeInTheDocument();
+    expect(screen.queryByText('Ajouter le compte bancaire de la SCI')).not.toBeInTheDocument();
+    expect(screen.queryByText("Établir le budget prévisionnel de l'année 2026")).not.toBeInTheDocument();
+  });
 });
 
