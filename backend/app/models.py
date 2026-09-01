@@ -165,6 +165,13 @@ class BankTransaction(Base):
     documents: Mapped[list["Document"]] = relationship(back_populates="transaction")
     budget_item_id: Mapped[int | None] = mapped_column(ForeignKey("budget_items.id"))
     budget_item: Mapped["BudgetItem | None"] = relationship(back_populates="transactions")
+    fund_call_line: Mapped["FundCallLine | None"] = relationship(
+        back_populates="bank_transaction", uselist=False
+    )
+
+    @property
+    def fund_call_line_id(self) -> int | None:
+        return self.fund_call_line.id if self.fund_call_line else None
 
 
 # ─── Compte courant d'associé ──────────────────────────────────
@@ -208,6 +215,9 @@ class FundCall(Base):
     status: Mapped[str] = mapped_column(
         String(20), default="en_attente"
     )  # en_attente | partiel | solde
+    call_type: Mapped[str] = mapped_column(
+        String(50), default="charges"
+    )  # charges | travaux | autre
 
     fiscal_year: Mapped["FiscalYear | None"] = relationship(back_populates="fund_calls")
     lines: Mapped[list["FundCallLine"]] = relationship(
@@ -233,6 +243,9 @@ class FundCallLine(Base):
 
     fund_call: Mapped["FundCall"] = relationship(back_populates="lines")
     associate: Mapped["Associate"] = relationship(back_populates="fund_call_lines")
+    bank_transaction: Mapped["BankTransaction | None"] = relationship(
+        back_populates="fund_call_line"
+    )
 
 
 class FundCallBudgetItem(Base):

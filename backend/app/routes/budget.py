@@ -198,6 +198,7 @@ def list_fund_calls(
                 call_date=call.call_date,
                 due_date=call.due_date,
                 purpose=call.purpose,
+                call_type=getattr(call, 'call_type', 'charges') or 'charges',
                 total_amount=float(call.total_amount),
                 amount_paid=round(paid_amount, 2),
                 amount_remaining=round(rem_amount, 2),
@@ -259,6 +260,7 @@ def create_fund_call(
         call_date=data.call_date,
         due_date=data.due_date,
         purpose=data.purpose,
+        call_type=data.call_type or "charges",
         total_amount=round(total_amount, 2),
         status="en_attente",
     )
@@ -336,7 +338,18 @@ def update_fund_call_line(
             line.payment_date = date.today()
 
     if data.bank_transaction_id is not None:
-        line.bank_transaction_id = data.bank_transaction_id
+        line.bank_transaction_id = data.bank_transaction_id if data.bank_transaction_id > 0 else None
+        if line.bank_transaction_id:
+            tx = db.query(BankTransaction).filter(BankTransaction.id == line.bank_transaction_id).first()
+            if tx:
+                tx.category = "Règlement appel de fonds"
+                tx.associate_id = line.associate_id
+                tx.reconciliation_status = "rapprochee"
+                # S'assurer qu'aucun mouvement CCA n'existe pour cette transaction !
+                from app.models import CurrentAccountMovement
+                cca = db.query(CurrentAccountMovement).filter(CurrentAccountMovement.bank_transaction_id == tx.id).first()
+                if cca:
+                    db.delete(cca)
 
     db.flush()
     total_due = float(call.total_amount)

@@ -38,6 +38,7 @@ import type {
 const COMMON_CATEGORIES = [
   "Acquisition bien / Notaire",
   "Loyer perçu",
+  "Règlement appel de fonds",
   "Virement Associé (Apport / Retrait)",
   "Charges, Eau & Électricité",
   "Travaux & Réparations",
@@ -56,12 +57,11 @@ function fmt(n: number): string {
   }).format(n);
 }
 
-function formatDate(iso: string | null | undefined): string {
-  if (!iso) return '';
+function formatDate(iso: string): string {
   try {
     const d = new Date(iso);
     return new Intl.DateTimeFormat('fr-FR', {
-      day: '2-digit',
+      day: 'numeric',
       month: 'short',
     }).format(d);
   } catch {
@@ -92,6 +92,7 @@ export default function Overview() {
     category: '',
     third_party: '',
     notes: '',
+    fund_call_line_id: 0,
   });
   const [savingReconcile, setSavingReconcile] = useState(false);
 
@@ -338,12 +339,17 @@ export default function Overview() {
       labelLower.includes('virement en votre faveur');
 
     const defaultAssocId = matchedAssoc ? matchedAssoc.id : (isAssociateKeyword && associates.length > 0 ? associates[0].id : 0);
+    const isFundCall = labelLower.includes('appel') || labelLower.includes('cotisation');
+    const defaultCategory = defaultAssocId > 0 
+      ? (isFundCall ? "Règlement appel de fonds" : "Compte courant d'associé")
+      : (COMMON_CATEGORIES[0] || '');
 
     setReconcileForm({
       associate_id: defaultAssocId,
-      category: defaultAssocId > 0 ? "Compte courant d'associé" : (COMMON_CATEGORIES[0] || ''),
+      category: tx.category || defaultCategory,
       third_party: tx.third_party || tx.original_label,
       notes: tx.notes || '',
+      fund_call_line_id: tx.fund_call_line_id || 0,
     });
   };
 
@@ -363,6 +369,7 @@ export default function Overview() {
           ? associates.find((a) => a.id === reconcileForm.associate_id)?.last_name || reconcilingTx.third_party
           : reconcileForm.third_party,
         notes: reconcileForm.notes,
+        fund_call_line_id: reconcileForm.category === "Règlement appel de fonds" ? (reconcileForm.fund_call_line_id || 0) : 0,
         reconciliation_status: 'categorisee',
       });
 
@@ -878,10 +885,38 @@ export default function Overview() {
                       onChange={(e) => setReconcileForm((f) => ({ ...f, category: e.target.value }))}
                       className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="Compte courant d'associé">Compte courant d'associé</option>
-                      <option value="Apport au capital">Apport au capital</option>
+                      <option value="Compte courant d'associé">Compte courant d'associé (Avance remboursable)</option>
+                      <option value="Règlement appel de fonds">Règlement appel de fonds (Charges courantes)</option>
+                      <option value="Apport au capital">Apport au capital social</option>
                     </select>
                   </div>
+
+                  {reconcileForm.category === "Règlement appel de fonds" && (
+                    <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200/70 space-y-1.5">
+                      <label className="block text-xs font-bold text-blue-900">
+                        Rattacher à l'appel de fonds (Optionnel)
+                      </label>
+                      <select
+                        value={reconcileForm.fund_call_line_id || 0}
+                        onChange={(e) => setReconcileForm(f => ({ ...f, fund_call_line_id: Number(e.target.value) }))}
+                        className="w-full bg-white text-slate-900 text-xs font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={0}>-- Sélectionner l'appel de fonds correspondant --</option>
+                        {fundCalls.flatMap(fc => 
+                          fc.lines
+                            .filter(l => l.associate_id === reconcileForm.associate_id)
+                            .map(l => (
+                              <option key={l.id} value={l.id}>
+                                {fc.call_number || `Appel #${fc.id}`} - {fc.purpose} (Dû: {fmt(l.amount_due)}{l.is_paid ? ' · Soldé' : ''})
+                              </option>
+                            ))
+                        )}
+                      </select>
+                      <p className="text-[11px] text-blue-800 leading-tight">
+                        Cette opération solde l'appel de fonds de l'associé et <strong>n'augmente pas son solde CCA</strong>.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>

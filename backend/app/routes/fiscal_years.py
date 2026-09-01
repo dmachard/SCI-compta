@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_manager
 from app.database import get_db
-from app.models import SCI, FiscalYear, BankTransaction, Associate
+from app.models import SCI, FiscalYear, BankTransaction, Associate, CurrentAccountMovement
 from app.schemas import (
     FiscalYearCreate,
     FiscalYearResponse,
@@ -109,8 +109,15 @@ def get_fiscal_year_summary(
         category_name = tx.category or "Non catégorisé"
         amt = float(tx.amount)
 
-        # 1. Traitement des Apports en Compte Courant d'Associés (Passif / Dette)
-        if (tx.associate_id and tx.associate_id > 0) or category_name in ["Compte courant / Apport associé", "Compte courant d'associé", "Apport au capital", "Virement Associé (Apport / Retrait)"]:
+        # 1. Traitement des Apports et Financements Associés (Passif / Dette / Financement interne)
+        if (tx.associate_id and tx.associate_id > 0) or category_name in [
+            "Compte courant / Apport associé",
+            "Compte courant d'associé",
+            "Apport au capital",
+            "Virement Associé (Apport / Retrait)",
+            "Règlement appel de fonds",
+            "Appel de fonds",
+        ]:
             if amt > 0:
                 total_associate_contributions += amt
             continue
@@ -152,13 +159,15 @@ def get_fiscal_year_summary(
         quote_part = round((a.shares / total_shares) * 100.0, 2)
         result_share = round(net_result * (quote_part / 100.0), 2)
 
-        # Calcul des apports cumulés en Compte Courant d'Associé (CCA)
-        cca_txs = db.query(BankTransaction).filter(
-            BankTransaction.associate_id == a.id,
-            BankTransaction.category == "Compte courant d'associé",
-            BankTransaction.reconciliation_status == "rapprochee",
-        ).all()
-        cca_balance = sum(float(t.amount) for t in cca_txs)
+        # Calcul du solde en Compte Courant d'Associé (CCA) strictement issu des mouvements CCA
+        movements = (
+            db.query(CurrentAccountMovement)
+            .filter(CurrentAccountMovement.associate_id == a.id)
+            .all()
+        )
+        cca_balance = sum(
+            m.amount if m.movement_type == "versement" else -m.amount for m in movements
+        )
 
         # Calcul du capital versé
         capital_txs = db.query(BankTransaction).filter(

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { bankApi, associatesApi, authApi, budgetApi } from '../api';
-import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User, BudgetTableItem } from '../types';
+import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User, BudgetTableItem, FundCall } from '../types';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -28,6 +28,7 @@ function getPageNumbers(current: number, total: number): (number | string)[] {
 const COMMON_CATEGORIES = [
   "Acquisition bien / Notaire",
   "Loyer perçu",
+  "Règlement appel de fonds",
   "Virement Associé (Apport / Retrait)",
   "Charges, Eau & Électricité",
   "Travaux & Réparations",
@@ -43,6 +44,7 @@ export default function BankAccounts() {
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetTableItem[]>([]);
+  const [fundCalls, setFundCalls] = useState<FundCall[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filtres
@@ -64,6 +66,7 @@ export default function BankAccounts() {
     category: '',
     associate_id: 0,
     budget_item_id: 0,
+    fund_call_line_id: 0,
     movement_type: 'versement',
     third_party: '',
     notes: '',
@@ -77,14 +80,18 @@ export default function BankAccounts() {
       associatesApi.list(),
       authApi.me().catch(() => null),
       budgetApi.getSummary(new Date().getFullYear()).catch(() => null),
+      budgetApi.getFundCalls(new Date().getFullYear()).catch(() => []),
     ])
-      .then(([accs, txs, assocs, me, bSummary]) => {
+      .then(([accs, txs, assocs, me, bSummary, fCalls]) => {
         setAccounts(accs);
         setTransactions(txs);
         setAssociates(assocs);
         setCurrentUser(me);
         if (bSummary) {
           setBudgetItems(bSummary.items);
+        }
+        if (fCalls) {
+          setFundCalls(fCalls);
         }
       })
       .catch((err) => console.error(err))
@@ -134,6 +141,7 @@ export default function BankAccounts() {
       category: tx.category || (tx.associate_id ? "Compte courant d'associé" : ''),
       associate_id: tx.associate_id || 0,
       budget_item_id: tx.budget_item_id || 0,
+      fund_call_line_id: tx.fund_call_line_id || 0,
       movement_type: tx.movement_type || (tx.amount > 0 ? 'versement' : 'remboursement'),
       third_party: tx.third_party || '',
       notes: tx.notes || '',
@@ -149,6 +157,7 @@ export default function BankAccounts() {
         category: reconcileForm.category,
         associate_id: reconcileForm.associate_id > 0 ? reconcileForm.associate_id : null,
         budget_item_id: reconcileForm.budget_item_id > 0 ? reconcileForm.budget_item_id : null,
+        fund_call_line_id: reconcileForm.category === "Règlement appel de fonds" ? (reconcileForm.fund_call_line_id || 0) : 0,
         movement_type: reconcileForm.movement_type,
         third_party: reconcileForm.third_party,
         notes: reconcileForm.notes,
@@ -671,17 +680,45 @@ export default function BankAccounts() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Type d'apport / versement
+                      Nature de l'opération associé
                     </label>
                     <select
                       value={reconcileForm.category}
                       onChange={(e) => setReconcileForm(f => ({ ...f, category: e.target.value }))}
                       className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3.5 py-2.5 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="Compte courant d'associé">Compte courant d'associé</option>
-                      <option value="Apport au capital">Apport au capital</option>
+                      <option value="Compte courant d'associé">Compte courant d'associé (Avance remboursable)</option>
+                      <option value="Règlement appel de fonds">Règlement appel de fonds (Charges courantes)</option>
+                      <option value="Apport au capital">Apport au capital social</option>
                     </select>
                   </div>
+
+                  {reconcileForm.category === "Règlement appel de fonds" && (
+                    <div className="bg-blue-50/70 p-3 rounded-xl border border-blue-200/70 space-y-2">
+                      <label className="block text-xs font-bold text-blue-900">
+                        Rattacher à l'appel de fonds (Optionnel)
+                      </label>
+                      <select
+                        value={reconcileForm.fund_call_line_id || 0}
+                        onChange={(e) => setReconcileForm(f => ({ ...f, fund_call_line_id: Number(e.target.value) }))}
+                        className="w-full bg-white text-slate-900 text-xs font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={0}>-- Sélectionner l'appel de fonds correspondant --</option>
+                        {fundCalls.flatMap(fc => 
+                          fc.lines
+                            .filter(l => l.associate_id === reconcileForm.associate_id)
+                            .map(l => (
+                              <option key={l.id} value={l.id}>
+                                {fc.call_number || `Appel #${fc.id}`} - {fc.purpose} (Dû: {fmt(l.amount_due)}{l.is_paid ? ' · Soldé' : ''})
+                              </option>
+                            ))
+                        )}
+                      </select>
+                      <p className="text-[11px] text-blue-800 leading-tight">
+                        Cette opération soldera l'appel de fonds de l'associé et <strong>n'augmentera pas son solde CCA</strong>.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>

@@ -13,6 +13,8 @@ from app.models import (
     BankTransaction,
     CurrentAccountMovement,
     FiscalYear,
+    FundCall,
+    FundCallLine,
     SCI,
     User,
 )
@@ -256,6 +258,8 @@ async def import_bank_csv(
         if matched_associate_id:
             if "CAPITAL" in label_upper:
                 category = "Apport au capital"
+            elif any(k in label_upper for k in ["APPEL", "CHARGES", "COTISATION"]):
+                category = "Règlement appel de fonds"
             else:
                 category = "Compte courant d'associé"
             movement_type = "versement" if p_tx["amount"] > 0 else "remboursement"
@@ -276,7 +280,7 @@ async def import_bank_csv(
         db.add(tx)
         db.flush()
 
-        # Si rapproché automatiquement vers un associé, créer le mouvement de compte courant
+        # Si rapproché automatiquement vers un associé en Compte courant d'associé : créer le mouvement CCA
         if matched_associate_id and rec_status == "rapprochee" and category == "Compte courant d'associé":
             cca = CurrentAccountMovement(
                 associate_id=matched_associate_id,
@@ -288,6 +292,30 @@ async def import_bank_csv(
                 bank_transaction_id=tx.id,
             )
             db.add(cca)
+        # Si règlement d'appel de fonds : pointer automatiquement la ligne d'appel UNIQUEMENT s'il y a correspondance certaine et unique (1 seule ligne en attente)
+        elif matched_associate_id and category == "Règlement appel de fonds":
+            candidate_lines = (
+                db.query(FundCallLine)
+                .join(FundCall)
+                .filter(
+                    FundCallLine.associate_id == matched_associate_id,
+                    FundCallLine.amount_due == abs(float(p_tx["amount"])),
+                    FundCallLine.bank_transaction_id.is_(None),
+                )
+                .all()
+            )
+            if len(candidate_lines) == 1:
+                pending_line = candidate_lines[0]
+                pending_line.bank_transaction_id = tx.id
+                pending_line.amount_paid = min(float(pending_line.amount_due), float(pending_line.amount_paid or 0) + abs(float(p_tx["amount"])))
+                pending_line.payment_date = tx_date
+                call = pending_line.fund_call
+                total_due = float(call.total_amount)
+                total_paid = sum(float(l.amount_paid or 0) for l in call.lines)
+                call.status = "solde" if total_paid >= total_due else ("partiel" if total_paid > 0 else "en_attente")
+            else:
+                # Ambiguïté : plusieurs lignes ou aucune ligne de ce montant -> laisser à traiter
+                tx.reconciliation_status = "a_traiter"
 
         imported_count += 1
 
@@ -330,43 +358,62 @@ def reconcile_transaction(
     if req.budget_item_id is not None:
         tx.budget_item_id = req.budget_item_id if req.budget_item_id > 0 else None
 
-    # Gérer la synchronisation avec le compte courant d'associé
-    if tx.associate_id and tx.reconciliation_status == "rapprochee":
-        # Vérifier si un mouvement CCA existe déjà pour cette transaction
-        existing_cca = (
-            db.query(CurrentAccountMovement)
-            .filter(CurrentAccountMovement.bank_transaction_id == tx.id)
-            .first()
-        )
-        mvt_type = tx.movement_type or ("versement" if tx.amount > 0 else "remboursement")
-
-        if tx.category != "Apport au capital":
-            if existing_cca:
-                existing_cca.associate_id = tx.associate_id
-                existing_cca.movement_date = tx.transaction_date
-                existing_cca.movement_type = mvt_type
-                existing_cca.amount = abs(tx.amount)
-            else:
-                new_cca = CurrentAccountMovement(
-                    associate_id=tx.associate_id,
-                    fiscal_year_id=tx.fiscal_year_id,
-                    movement_date=tx.transaction_date,
-                    movement_type=mvt_type,
-                    amount=abs(tx.amount),
-                    reason=f"Transaction bancaire: {tx.original_label[:100]}",
-                    bank_transaction_id=tx.id,
-                )
-                db.add(new_cca)
+    # Rattachement / dissociation éventuelle d'une ligne d'appel de fonds
+    if req.fund_call_line_id is not None:
+        if req.fund_call_line_id > 0:
+            fc_line = db.query(FundCallLine).filter(FundCallLine.id == req.fund_call_line_id).first()
+            if fc_line:
+                fc_line.bank_transaction_id = tx.id
+                fc_line.amount_paid = abs(float(tx.amount))
+                fc_line.payment_date = tx.transaction_date
+                call = fc_line.fund_call
+                total_due = float(call.total_amount)
+                total_paid = sum(float(l.amount_paid or 0) for l in call.lines)
+                call.status = "solde" if total_paid >= total_due else ("partiel" if total_paid > 0 else "en_attente")
+                tx.category = "Règlement appel de fonds"
+                tx.associate_id = fc_line.associate_id
         else:
-            if existing_cca:
-                db.delete(existing_cca)
+            # Dissocier les lignes d'appel de fonds précédemment associées
+            linked_lines = db.query(FundCallLine).filter(FundCallLine.bank_transaction_id == tx.id).all()
+            for l in linked_lines:
+                l.bank_transaction_id = None
+                l.amount_paid = 0.0
+                l.payment_date = None
+                call = l.fund_call
+                total_due = float(call.total_amount)
+                total_paid = sum(float(x.amount_paid or 0) for x in call.lines)
+                call.status = "solde" if total_paid >= total_due else ("partiel" if total_paid > 0 else "en_attente")
+
+    # Vérifier si un mouvement CCA existe déjà pour cette transaction
+    existing_cca = (
+        db.query(CurrentAccountMovement)
+        .filter(CurrentAccountMovement.bank_transaction_id == tx.id)
+        .first()
+    )
+
+    # Gérer la synchronisation avec le compte courant d'associé :
+    # STRICTEMENT ET UNIQUEMENT si la catégorie est "Compte courant d'associé" !
+    # Les appels de fonds pour charges ou apports au capital NE doivent JAMAIS créer de CCA.
+    if tx.associate_id and tx.reconciliation_status == "rapprochee" and tx.category == "Compte courant d'associé":
+        mvt_type = tx.movement_type or ("versement" if tx.amount > 0 else "remboursement")
+        if existing_cca:
+            existing_cca.associate_id = tx.associate_id
+            existing_cca.movement_date = tx.transaction_date
+            existing_cca.movement_type = mvt_type
+            existing_cca.amount = abs(tx.amount)
+        else:
+            new_cca = CurrentAccountMovement(
+                associate_id=tx.associate_id,
+                fiscal_year_id=tx.fiscal_year_id,
+                movement_date=tx.transaction_date,
+                movement_type=mvt_type,
+                amount=abs(tx.amount),
+                reason=f"Transaction bancaire: {tx.original_label[:100]}",
+                bank_transaction_id=tx.id,
+            )
+            db.add(new_cca)
     else:
-        # Si le rapprochement vers l'associé est supprimé, supprimer le mouvement CCA associé
-        existing_cca = (
-            db.query(CurrentAccountMovement)
-            .filter(CurrentAccountMovement.bank_transaction_id == tx.id)
-            .first()
-        )
+        # Si la transaction n'est pas/plus un Compte courant d'associé ou plus rapprochée, supprimer le mouvement CCA lié !
         if existing_cca:
             db.delete(existing_cca)
 
