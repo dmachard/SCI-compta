@@ -129,21 +129,16 @@ export default function Overview() {
     if (!silent) setLoading(true);
 
     try {
-      const [
-        sciRes,
-        accountsRes,
-        txsRes,
-        assocsRes,
-        ccaRes,
-        fyRes,
-        budgetRes,
-        fundsRes,
-        docsRes,
-      ] = await Promise.allSettled([
+      // Vague 1 : Données de base (4 requêtes simultanées, sous la limite de 6 du navigateur)
+      const [sciRes, accountsRes, txsRes, assocsRes] = await Promise.allSettled([
         sciApi.get(),
         bankApi.getAccounts(),
         bankApi.getTransactions(),
         associatesApi.list(),
+      ]);
+
+      // Vague 2 : Données complémentaires (5 requêtes simultanées)
+      const [ccaRes, fyRes, budgetRes, fundsRes, docsRes] = await Promise.allSettled([
         currentAccountsApi.balances(),
         fiscalYearsApi.list(),
         budgetApi.getSummary(currentYear),
@@ -156,54 +151,63 @@ export default function Overview() {
       if (sciRes.status === 'fulfilled') {
         setSci(sciRes.value);
       } else {
+        console.warn('[Overview] Échec chargement SCI:', sciRes.reason);
         hasError = true;
       }
 
       if (accountsRes.status === 'fulfilled') {
         setBankAccounts(accountsRes.value);
       } else {
+        console.warn('[Overview] Échec chargement comptes bancaires:', accountsRes.reason);
         hasError = true;
       }
 
       if (txsRes.status === 'fulfilled') {
         setTransactions(txsRes.value);
       } else {
+        console.warn('[Overview] Échec chargement transactions:', txsRes.reason);
         hasError = true;
       }
 
       if (assocsRes.status === 'fulfilled') {
         setAssociates(assocsRes.value);
       } else {
+        console.warn('[Overview] Échec chargement associés:', assocsRes.reason);
         hasError = true;
       }
 
       if (ccaRes.status === 'fulfilled') {
         setCcaBalances(ccaRes.value);
       } else {
+        console.warn('[Overview] Échec chargement soldes CCA:', ccaRes.reason);
         hasError = true;
       }
 
       if (fyRes.status === 'fulfilled') {
         setFiscalYears(fyRes.value);
       } else {
+        console.warn('[Overview] Échec chargement exercices fiscaux:', fyRes.reason);
         hasError = true;
       }
 
       if (budgetRes.status === 'fulfilled') {
         setBudgetSummary(budgetRes.value);
       } else {
+        console.warn('[Overview] Échec chargement budget:', budgetRes.reason);
         hasError = true;
       }
 
       if (fundsRes.status === 'fulfilled') {
         setFundCalls(fundsRes.value);
       } else {
+        console.warn('[Overview] Échec chargement appels de fonds:', fundsRes.reason);
         hasError = true;
       }
 
       if (docsRes.status === 'fulfilled') {
         setDocuments(docsRes.value);
       } else {
+        console.warn('[Overview] Échec chargement documents:', docsRes.reason);
         hasError = true;
       }
 
