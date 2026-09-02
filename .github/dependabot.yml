@@ -3,19 +3,29 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
+    groups:
+      actions:
+        patterns:
+          - "*"
   
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 5
     groups:
       react:
         patterns:
-          - "react"
-          - "react-dom"
-          - "@types/react"
-          - "@types/react-dom"
+          - "react*"
+          - "@types/react*"
+      dev-dependencies:
+        dependency-type: "development"
+        patterns:
+          - "*"
+      all-other-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directory: "/backend"
@@ -31,3 +41,8 @@ updates:
     directory: "/backend"
     schedule:
       interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
