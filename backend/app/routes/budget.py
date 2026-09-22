@@ -87,7 +87,7 @@ def create_expense(
         transaction_date=data.date,
         original_label=data.label,
         amount=amount,
-        category="Charges, Eau & Électricité",
+        category="Charges, Eau, Électricité & Internet",
         third_party=data.third_party or item.supplier or "",
         notes=data.notes or "",
         reconciliation_status="rapprochee",
