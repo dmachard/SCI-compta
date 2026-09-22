@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   Upload,
   ArrowRight,
-  Building2,
   Tag,
   Receipt,
   Users,
@@ -877,7 +876,7 @@ export default function Overview() {
             <div className="space-y-2.5 sm:space-y-3">
               <div className="flex items-center gap-2 px-1">
                 <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                  <Building2 className="w-4 h-4" />
+                  <Users className="w-4 h-4" />
                 </div>
                 <h2 className="text-sm font-extrabold text-slate-900 tracking-tight">
                   Comptes courants débiteurs à régulariser

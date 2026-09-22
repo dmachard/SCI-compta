@@ -12,7 +12,6 @@ import {
   LogOut,
   Menu,
   X,
-  Building2,
 } from 'lucide-react';
 import type { User } from '../types';
 import logoUrl from '../assets/logo.svg';
@@ -65,9 +64,7 @@ export default function Layout({ user, onLogout, children }: Props) {
         {/* Logo */}
         <div className="p-5 border-b border-border flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
-              <Building2 className="w-5 h-5 stroke-[2]" />
-            </div>
+            <img src={logoUrl} alt="SCI Compta" className="w-9 h-9 rounded-xl shadow-sm shrink-0" />
             <div>
               <h1 className="text-base font-extrabold text-text-primary tracking-tight leading-none">
                 Gestion SCI
@@ -159,9 +156,7 @@ export default function Layout({ user, onLogout, children }: Props) {
               <Menu size={24} />
             </button>
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
-                <Building2 className="w-4 h-4 stroke-[2]" />
-              </div>
+              <img src={logoUrl} alt="SCI Compta" className="w-7 h-7 rounded-lg shrink-0" />
               <h1 className="text-lg font-bold text-text-primary tracking-tight">Gestion SCI</h1>
             </div>
           </div>

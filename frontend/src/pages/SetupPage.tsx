@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { authApi } from '../api';
-import { Building2 } from 'lucide-react';
+import logoUrl from '../assets/logo.svg';
 
 interface Props {
   onSetup: (token: string) => void;
@@ -31,9 +31,7 @@ export default function SetupPage({ onSetup }: Props) {
     <div className="min-h-screen bg-bg-primary flex items-center justify-center p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4 shadow-sm">
-            <Building2 className="w-7 h-7 stroke-[1.75]" />
-          </div>
+          <img src={logoUrl} alt="Logo SCI" className="w-16 h-16 rounded-2xl mb-4 shadow-md" />
           <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Gestion SCI</h1>
           <p className="text-sm text-slate-500 mt-1.5">Configuration initiale — Créez le compte gérant</p>
         </div>
