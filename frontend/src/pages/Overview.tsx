@@ -429,7 +429,7 @@ export default function Overview() {
       }
     }
 
-    // Sauvegarde papier annuelle des documents
+    // Sauvegarde papier annuelle des documents (uniquement s'il existe des documents/données pour une année passée)
     const pastActiveYears = Array.from(
       new Set([
         ...transactions.map((t) => new Date(t.transaction_date).getFullYear()),
@@ -438,9 +438,7 @@ export default function Overview() {
       ])
     ).filter((y) => y < currentYear).sort((a, b) => b - a);
 
-    const candidateYears = pastActiveYears.length > 0 ? pastActiveYears : [currentYear - 1];
-
-    for (const y of candidateYears) {
+    for (const y of pastActiveYears) {
       if (!archivedPaperYears.includes(y)) {
         list.push({
           id: `global-paper-backup-${y}`,
