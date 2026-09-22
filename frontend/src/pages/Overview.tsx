@@ -14,6 +14,7 @@ import {
   UserCheck,
   AlertTriangle,
   RefreshCw,
+  Check,
 } from 'lucide-react';
 import {
   bankApi,
@@ -125,6 +126,26 @@ export default function Overview() {
   const [uploadingTxId, setUploadingTxId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedTxForUpload = useRef<BankTransaction | null>(null);
+
+  // Années dont la sauvegarde papier a été validée
+  const [archivedPaperYears, setArchivedPaperYears] = useState<number[]>(() => {
+    try {
+      const saved = typeof window !== 'undefined' && window.localStorage ? window.localStorage.getItem('sci_paper_archived_years') : null;
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const handleMarkPaperArchived = (year: number) => {
+    const updated = [...archivedPaperYears, year];
+    setArchivedPaperYears(updated);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('sci_paper_archived_years', JSON.stringify(updated));
+      }
+    } catch {}
+  };
 
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -288,6 +309,8 @@ export default function Overview() {
       desc: string;
       url: string;
       btn: string;
+      year?: number;
+      isPaperBackup?: boolean;
     }> = [];
 
     // Configuration légale de la SCI incomplète (uniquement si SCI chargée avec succès)
@@ -407,8 +430,33 @@ export default function Overview() {
       }
     }
 
+    // Sauvegarde papier annuelle des documents
+    const pastActiveYears = Array.from(
+      new Set([
+        ...transactions.map((t) => new Date(t.transaction_date).getFullYear()),
+        ...documents.map((d) => d.folder_year || (d.document_date ? new Date(d.document_date).getFullYear() : null)).filter(Boolean) as number[],
+        ...fiscalYears.map((fy) => parseInt(fy.label.match(/\d{4}/)?.[0] || '0')).filter((y) => y > 0),
+      ])
+    ).filter((y) => y < currentYear).sort((a, b) => b - a);
+
+    const candidateYears = pastActiveYears.length > 0 ? pastActiveYears : [currentYear - 1];
+
+    for (const y of candidateYears) {
+      if (!archivedPaperYears.includes(y)) {
+        list.push({
+          id: `global-paper-backup-${y}`,
+          title: `Sauvegarde papier : imprimer les documents de l'année ${y}`,
+          desc: `Imprimez factures, relevés bancaires et procès-verbaux de ${y} pour votre classeur de sauvegarde physique.`,
+          url: '/documents',
+          btn: 'Voir les documents',
+          year: y,
+          isPaperBackup: true,
+        });
+      }
+    }
+
     return list;
-  }, [sci, associates, bankAccounts, transactions, budgetSummary, fundCalls, fiscalYears, currentYear, loadedSections]);
+  }, [sci, associates, bankAccounts, transactions, budgetSummary, fundCalls, fiscalYears, currentYear, loadedSections, archivedPaperYears]);
 
   // Ouverture de la modale de classement direct pour une opération
   const openReconcileModal = (tx: BankTransaction) => {
@@ -900,7 +948,18 @@ export default function Overview() {
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-end shrink-0">
+                    <div className="flex items-center gap-2 justify-end shrink-0">
+                      {item.isPaperBackup && item.year && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkPaperArchived(item.year!)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white rounded-lg transition-all shadow-2xs cursor-pointer"
+                          title="Marquer la sauvegarde papier comme effectuée"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Fait</span>
+                        </button>
+                      )}
                       <Link
                         to={item.url}
                         className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-600 hover:text-white rounded-lg transition-all shrink-0 shadow-2xs"
