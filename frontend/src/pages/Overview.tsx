@@ -107,6 +107,7 @@ export default function Overview() {
     third_party: '',
     notes: '',
     fund_call_line_id: 0,
+    budget_item_id: 0,
   });
   const [savingReconcile, setSavingReconcile] = useState(false);
 
@@ -432,12 +433,21 @@ export default function Overview() {
       ? (isFundCall ? "Règlement appel de fonds" : "Compte courant d'associé")
       : (COMMON_CATEGORIES[0] || '');
 
+    const matchedBudgetItem = defaultAssocId === 0
+      ? (budgetSummary?.items || []).find(
+          (b) =>
+            (b.name && labelLower.includes(b.name.toLowerCase())) ||
+            (b.supplier && labelLower.includes(b.supplier.toLowerCase()))
+        )
+      : undefined;
+
     setReconcileForm({
       associate_id: defaultAssocId,
       category: tx.category || defaultCategory,
       third_party: tx.third_party || tx.original_label,
       notes: tx.notes || '',
       fund_call_line_id: tx.fund_call_line_id || 0,
+      budget_item_id: tx.budget_item_id || matchedBudgetItem?.id || 0,
     });
   };
 
@@ -452,6 +462,7 @@ export default function Overview() {
       await bankApi.reconcileTransaction(reconcilingTx.id, {
         category: reconcileForm.category,
         associate_id: isAssoc ? reconcileForm.associate_id : null,
+        budget_item_id: !isAssoc && reconcileForm.budget_item_id > 0 ? reconcileForm.budget_item_id : null,
         movement_type: isAssoc ? 'versement' : (Number(reconcilingTx.amount) >= 0 ? 'recette' : 'depense'),
         third_party: isAssoc
           ? associates.find((a) => a.id === reconcileForm.associate_id)?.last_name || reconcilingTx.third_party
@@ -945,6 +956,7 @@ export default function Overview() {
                         ...f,
                         associate_id: associates[0]?.id || 1,
                         category: "Compte courant d'associé",
+                        budget_item_id: 0,
                       }))
                     }
                     className={`py-2 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
@@ -1038,21 +1050,48 @@ export default function Overview() {
                   )}
                 </div>
               ) : (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Catégorie
-                  </label>
-                  <select
-                    value={reconcileForm.category}
-                    onChange={(e) => setReconcileForm((f) => ({ ...f, category: e.target.value }))}
-                    className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
-                  >
-                    {COMMON_CATEGORIES.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Catégorie
+                    </label>
+                    <select
+                      value={reconcileForm.category}
+                      onChange={(e) => setReconcileForm((f) => ({ ...f, category: e.target.value }))}
+                      className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {COMMON_CATEGORIES.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {budgetSummary?.items && budgetSummary.items.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Poste budgétaire (Optionnel)
+                      </label>
+                      <select
+                        value={reconcileForm.budget_item_id}
+                        onChange={(e) =>
+                          setReconcileForm((f) => ({
+                            ...f,
+                            budget_item_id: Number(e.target.value),
+                          }))
+                        }
+                        className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value={0}>-- Aucun poste budgétaire rattaché --</option>
+                        {budgetSummary.items.map((it) => (
+                          <option key={it.id} value={it.id}>
+                            {it.icon} {it.name} ({fmt(it.forecast)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 

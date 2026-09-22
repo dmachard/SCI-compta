@@ -170,6 +170,7 @@ describe('Overview Component', () => {
 
     expect(screen.getByText("Classer l'opération")).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Valider le classement/i })).toBeInTheDocument();
+    expect(screen.getByText(/Poste budgétaire \(Optionnel\)/i)).toBeInTheDocument();
   });
 
   it('shows distinct CCA and Règlement appel de fonds options when associate is selected', async () => {
