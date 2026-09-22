@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import { bankApi, associatesApi, authApi, budgetApi } from '../api';
-import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User, BudgetTableItem, FundCall } from '../types';
+import { useEffect, useState, useRef } from 'react';
+import { Upload, CheckCircle2, Clock, Trash2, Filter, Search, ArrowUpRight, ArrowDownRight, CreditCard, UserCheck, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Paperclip } from 'lucide-react';
+import { bankApi, associatesApi, authApi, budgetApi, documentsApi } from '../api';
+import type { BankAccount, BankTransaction, Associate, ImportCSVResponse, User, BudgetTableItem, FundCall, DocumentItem } from '../types';
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
@@ -45,7 +45,13 @@ export default function BankAccounts() {
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetTableItem[]>([]);
   const [fundCalls, setFundCalls] = useState<FundCall[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Upload rapide de justificatif
+  const [uploadingDocTxId, setUploadingDocTxId] = useState<number | null>(null);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+  const selectedTxForDocUpload = useRef<BankTransaction | null>(null);
 
   // Filtres
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -81,12 +87,14 @@ export default function BankAccounts() {
       authApi.me().catch(() => null),
       budgetApi.getSummary(new Date().getFullYear()).catch(() => null),
       budgetApi.getFundCalls(new Date().getFullYear()).catch(() => []),
+      documentsApi.list().catch(() => []),
     ])
-      .then(([accs, txs, assocs, me, bSummary, fCalls]) => {
+      .then(([accs, txs, assocs, me, bSummary, fCalls, docs]) => {
         setAccounts(accs);
         setTransactions(txs);
         setAssociates(assocs);
         setCurrentUser(me);
+        setDocuments(docs || []);
         if (bSummary) {
           setBudgetItems(bSummary.items);
         }
@@ -180,6 +188,47 @@ export default function BankAccounts() {
     }
   }
 
+  function handleDownloadDoc(doc: DocumentItem) {
+    documentsApi.downloadBlob(doc.id, doc.original_filename);
+  }
+
+  function handleTriggerDocUpload(tx: BankTransaction) {
+    selectedTxForDocUpload.current = tx;
+    if (docFileInputRef.current) {
+      docFileInputRef.current.value = '';
+      docFileInputRef.current.click();
+    }
+  }
+
+  async function handleDocFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    const tx = selectedTxForDocUpload.current;
+    if (!file || !tx) return;
+
+    setUploadingDocTxId(tx.id);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('document_type', 'facture');
+      formData.append('folder_year', String(new Date(tx.transaction_date).getFullYear()));
+      formData.append('supplier', tx.third_party || tx.original_label);
+      formData.append('amount_ttc', String(Math.abs(Number(tx.amount))));
+      formData.append('document_date', tx.transaction_date);
+      formData.append('bank_transaction_id', String(tx.id));
+      if (tx.category) {
+        formData.append('category', tx.category);
+      }
+
+      await documentsApi.upload(formData);
+      loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || "Erreur lors de l'envoi du document");
+    } finally {
+      setUploadingDocTxId(null);
+      selectedTxForDocUpload.current = null;
+    }
+  }
+
 
 
   const primaryAccount = accounts[0];
@@ -207,6 +256,15 @@ export default function BankAccounts() {
             handleFileUpload(e.target.files[0]);
           }
         }}
+      />
+
+      {/* Input fichier justificatif masqué */}
+      <input
+        ref={docFileInputRef}
+        type="file"
+        accept=".pdf,.jpg,.jpeg,.png,.webp"
+        className="hidden"
+        onChange={handleDocFileSelected}
       />
 
       {/* 1 Seul bloc d'en-tête unifié et harmonieux */}
@@ -352,6 +410,41 @@ export default function BankAccounts() {
                           <p className="text-slate-900 font-medium text-xs leading-relaxed" title={tx.original_label}>
                             {tx.original_label}
                           </p>
+
+                          {/* Documents associés */}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            {documents
+                              .filter((d) => d.bank_transaction_id === tx.id)
+                              .map((doc) => (
+                                <button
+                                  key={doc.id}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadDoc(doc);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200/60 transition-colors cursor-pointer"
+                                  title={`Télécharger le document : ${doc.original_filename}`}
+                                >
+                                  <Paperclip className="w-3 h-3 text-indigo-600 shrink-0" />
+                                  <span className="truncate max-w-[130px]">{doc.original_filename}</span>
+                                </button>
+                              ))}
+
+                            {currentUser?.role === 'gerant' &&
+                              documents.filter((d) => d.bank_transaction_id === tx.id).length === 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleTriggerDocUpload(tx)}
+                                  disabled={uploadingDocTxId === tx.id}
+                                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 hover:text-indigo-600 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                                  title="Rattacher un justificatif"
+                                >
+                                  <Paperclip className="w-2.5 h-2.5" />
+                                  <span>{uploadingDocTxId === tx.id ? 'Envoi...' : '+ Justificatif'}</span>
+                                </button>
+                              )}
+                          </div>
                         </td>
 
                         {/* Catégorie */}
@@ -449,6 +542,38 @@ export default function BankAccounts() {
                     <p className="text-slate-900 font-medium text-xs leading-relaxed">
                       {tx.original_label}
                     </p>
+
+                    {/* Documents associés en vue mobile */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {documents
+                        .filter((d) => d.bank_transaction_id === tx.id)
+                        .map((doc) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => handleDownloadDoc(doc)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2 py-0.5 rounded-md border border-indigo-200/60 transition-colors cursor-pointer"
+                            title={`Télécharger le document : ${doc.original_filename}`}
+                          >
+                            <Paperclip className="w-3 h-3 text-indigo-600 shrink-0" />
+                            <span className="truncate max-w-[140px]">{doc.original_filename}</span>
+                          </button>
+                        ))}
+
+                      {currentUser?.role === 'gerant' &&
+                        documents.filter((d) => d.bank_transaction_id === tx.id).length === 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleTriggerDocUpload(tx)}
+                            disabled={uploadingDocTxId === tx.id}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400 hover:text-indigo-600 hover:bg-slate-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            title="Rattacher un justificatif"
+                          >
+                            <Paperclip className="w-2.5 h-2.5" />
+                            <span>{uploadingDocTxId === tx.id ? 'Envoi...' : '+ Justificatif'}</span>
+                          </button>
+                        )}
+                    </div>
 
                     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                       {tx.category ? (
@@ -793,6 +918,30 @@ export default function BankAccounts() {
                   />
                 </div>
               </div>
+
+              {/* Justificatifs rattachés dans la modale */}
+              {reconcilingTx && documents.filter((d) => d.bank_transaction_id === reconcilingTx.id).length > 0 && (
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-1.5">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Document(s) associé(s)
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {documents
+                      .filter((d) => d.bank_transaction_id === reconcilingTx.id)
+                      .map((doc) => (
+                        <button
+                          key={doc.id}
+                          type="button"
+                          onClick={() => handleDownloadDoc(doc)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-50 border border-slate-200 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                        >
+                          <Paperclip className="w-3.5 h-3.5 text-indigo-600" />
+                          <span className="truncate max-w-[200px]">{doc.original_filename}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
                 <button
