@@ -24,6 +24,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./backend/alembic:/app/alembic
+      - ./backend/tests:/app/tests
       - ./uploads:/app/uploads
     ports:
       - "8000:8000"

@@ -514,7 +514,7 @@ export default function Overview() {
           : reconcileForm.third_party,
         notes: reconcileForm.notes,
         fund_call_line_id: reconcileForm.category === "Règlement appel de fonds" ? (reconcileForm.fund_call_line_id || 0) : 0,
-        reconciliation_status: 'categorisee',
+        reconciliation_status: 'rapprochee',
       });
 
       setReconcilingTx(null);

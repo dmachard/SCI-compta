@@ -31,7 +31,7 @@ def get_all_balances(
         )
         capital_txs = (
             db.query(BankTransaction)
-            .filter(BankTransaction.associate_id == a.id, BankTransaction.category == "Apport au capital", BankTransaction.reconciliation_status == "rapprochee")
+            .filter(BankTransaction.associate_id == a.id, BankTransaction.category == "Apport au capital", BankTransaction.reconciliation_status.in_(["rapprochee", "categorisee"]))
             .all()
         )
         capital_paid = sum(float(t.amount) for t in capital_txs)

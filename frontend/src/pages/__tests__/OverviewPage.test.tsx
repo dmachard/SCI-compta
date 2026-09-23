@@ -173,6 +173,35 @@ describe('Overview Component', () => {
     expect(screen.getByText(/Poste budgétaire \(Optionnel\)/i)).toBeInTheDocument();
   });
 
+  it('submits reconciliation with reconciliation_status rapprochee from overview todo modal', async () => {
+    const reconcileSpy = vi.spyOn(api.bankApi, 'reconcileTransaction').mockResolvedValue({} as any);
+
+    render(
+      <MemoryRouter>
+        <Overview />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Assurance Immo/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const categorizeButtons = screen.getAllByRole('button', { name: /Catégoriser/i });
+    fireEvent.click(categorizeButtons[0]);
+
+    const submitButton = screen.getByRole('button', { name: /Valider le classement/i });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(reconcileSpy).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          reconciliation_status: 'rapprochee',
+        })
+      );
+    });
+  });
+
   it('shows distinct CCA and Règlement appel de fonds options when associate is selected', async () => {
     render(
       <MemoryRouter>

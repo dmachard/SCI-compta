@@ -156,7 +156,12 @@ def list_transactions(
     if account_id:
         query = query.filter(BankTransaction.bank_account_id == account_id)
     if status:
-        query = query.filter(BankTransaction.reconciliation_status == status)
+        if status == "rapprochee":
+            query = query.filter(
+                BankTransaction.reconciliation_status.in_(["rapprochee", "categorisee"])
+            )
+        else:
+            query = query.filter(BankTransaction.reconciliation_status == status)
     if search:
         query = query.filter(BankTransaction.original_label.ilike(f"%{search}%"))
 
@@ -348,7 +353,9 @@ def reconcile_transaction(
     if req.notes is not None:
         tx.notes = req.notes
     if req.reconciliation_status is not None:
-        tx.reconciliation_status = req.reconciliation_status
+        tx.reconciliation_status = (
+            "rapprochee" if req.reconciliation_status == "categorisee" else req.reconciliation_status
+        )
 
     # Mise à jour de l'associé
     if req.associate_id is not None:

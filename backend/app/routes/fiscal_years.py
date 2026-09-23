@@ -93,7 +93,7 @@ def get_fiscal_year_summary(
         .filter(
             BankTransaction.transaction_date >= fy.start_date,
             BankTransaction.transaction_date <= fy.end_date,
-            BankTransaction.reconciliation_status == "rapprochee",
+            BankTransaction.reconciliation_status.in_(["rapprochee", "categorisee"]),
         )
         .all()
     )
@@ -173,7 +173,7 @@ def get_fiscal_year_summary(
         capital_txs = db.query(BankTransaction).filter(
             BankTransaction.associate_id == a.id,
             BankTransaction.category == "Apport au capital",
-            BankTransaction.reconciliation_status == "rapprochee",
+            BankTransaction.reconciliation_status.in_(["rapprochee", "categorisee"]),
         ).all()
         capital_paid = sum(float(t.amount) for t in capital_txs)
 
@@ -256,7 +256,7 @@ def get_fiscal_year_tax_2072(
         .filter(
             BankTransaction.transaction_date >= fy.start_date,
             BankTransaction.transaction_date <= fy.end_date,
-            BankTransaction.reconciliation_status == "rapprochee",
+            BankTransaction.reconciliation_status.in_(["rapprochee", "categorisee"]),
         )
         .all()
     )

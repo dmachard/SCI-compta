@@ -232,8 +232,13 @@ export default function BankAccounts() {
 
 
   const primaryAccount = accounts[0];
-  const classifiedCount = transactions.filter(t => t.reconciliation_status === 'rapprochee').length;
-  const pendingCount = transactions.filter(t => t.reconciliation_status !== 'rapprochee').length;
+  const isTxClassified = (tx: BankTransaction) =>
+    tx.reconciliation_status === 'rapprochee' ||
+    tx.reconciliation_status === 'categorisee' ||
+    Boolean(tx.category);
+
+  const classifiedCount = transactions.filter(isTxClassified).length;
+  const pendingCount = transactions.filter((t) => !isTxClassified(t)).length;
 
   const totalItems = transactions.length;
   const isAll = pageSize === -1;
@@ -396,7 +401,7 @@ export default function BankAccounts() {
                   {paginatedTransactions.map((tx) => {
                     const isCredit = tx.amount >= 0;
                     const associateMatch = associates.find(a => a.id === tx.associate_id);
-                    const isClassified = tx.reconciliation_status === 'rapprochee';
+                    const isClassified = isTxClassified(tx);
 
                     return (
                       <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
@@ -526,7 +531,7 @@ export default function BankAccounts() {
               {paginatedTransactions.map((tx) => {
                 const isCredit = tx.amount >= 0;
                 const associateMatch = associates.find(a => a.id === tx.associate_id);
-                const isClassified = tx.reconciliation_status === 'rapprochee';
+                const isClassified = isTxClassified(tx);
 
                 return (
                   <div key={tx.id} className="p-4 space-y-2.5 hover:bg-slate-50/60 transition-colors">
