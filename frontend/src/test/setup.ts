@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom';
+import '@testing-library/jest-dom/vitest';
 
 // Polyfill window.matchMedia for JSDOM test environment
 if (typeof window !== 'undefined' && !window.matchMedia) {
@@ -16,4 +16,3 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
     }),
   });
 }
-
