@@ -50,6 +50,8 @@ const COMMON_CATEGORIES = [
   "Autre dépense / recette",
 ];
 
+const EXPENSE_REFUND_MOVEMENT_TYPE = 'remboursement_depense';
+
 function fmt(n: number): string {
   return new Intl.NumberFormat('fr-FR', {
     style: 'currency',
@@ -108,6 +110,7 @@ export default function Overview() {
     notes: '',
     fund_call_line_id: 0,
     budget_item_id: 0,
+    is_expense_refund: false,
   });
   const [savingReconcile, setSavingReconcile] = useState(false);
 
@@ -262,6 +265,23 @@ export default function Overview() {
       (tx) => tx.reconciliation_status === 'a_traiter' || !tx.category
     );
   }, [transactions]);
+  const expenseCategories = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          transactions
+            .filter(
+              (tx) =>
+                tx.amount < 0 &&
+                Boolean(tx.category) &&
+                !tx.associate_id &&
+                tx.reconciliation_status !== 'a_traiter'
+            )
+            .map((tx) => tx.category)
+        )
+      ),
+    [transactions]
+  );
 
   // 2. Liste précise des dépenses sans facture/justificatif
   const expensesMissingDocs = useMemo(() => {
@@ -493,6 +513,7 @@ export default function Overview() {
       notes: tx.notes || '',
       fund_call_line_id: tx.fund_call_line_id || 0,
       budget_item_id: tx.budget_item_id || matchedBudgetItem?.id || 0,
+      is_expense_refund: false,
     });
   };
 
@@ -503,17 +524,22 @@ export default function Overview() {
 
     setSavingReconcile(true);
     try {
-      const isAssoc = reconcileForm.associate_id > 0;
+      const isExpenseRefund = reconcileForm.is_expense_refund;
+      const isAssoc = !isExpenseRefund && reconcileForm.associate_id > 0;
       await bankApi.reconcileTransaction(reconcilingTx.id, {
         category: reconcileForm.category,
         associate_id: isAssoc ? reconcileForm.associate_id : null,
         budget_item_id: !isAssoc && reconcileForm.budget_item_id > 0 ? reconcileForm.budget_item_id : null,
-        movement_type: isAssoc ? 'versement' : (Number(reconcilingTx.amount) >= 0 ? 'recette' : 'depense'),
+        movement_type: isExpenseRefund
+          ? EXPENSE_REFUND_MOVEMENT_TYPE
+          : isAssoc ? 'versement' : (Number(reconcilingTx.amount) >= 0 ? 'recette' : 'depense'),
         third_party: isAssoc
           ? associates.find((a) => a.id === reconcileForm.associate_id)?.last_name || reconcilingTx.third_party
           : reconcileForm.third_party,
         notes: reconcileForm.notes,
-        fund_call_line_id: reconcileForm.category === "Règlement appel de fonds" ? (reconcileForm.fund_call_line_id || 0) : 0,
+        fund_call_line_id: isExpenseRefund
+          ? 0
+          : reconcileForm.category === "Règlement appel de fonds" ? (reconcileForm.fund_call_line_id || 0) : 0,
         reconciliation_status: 'rapprochee',
       });
 
@@ -1000,6 +1026,59 @@ export default function Overview() {
                 <p className="text-slate-900 font-bold text-xs leading-relaxed">{reconcilingTx.original_label}</p>
               </div>
 
+              {Number(reconcilingTx.amount) > 0 && reconcileForm.associate_id === 0 && (
+                <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reconcileForm.is_expense_refund}
+                    onChange={(e) =>
+                      setReconcileForm((form) => ({
+                        ...form,
+                        is_expense_refund: e.target.checked,
+                        category: e.target.checked ? expenseCategories[0] || '' : form.category,
+                        budget_item_id: 0,
+                      }))
+                    }
+                    className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Remboursement ou avoir d'une dépense (à déduire de cette catégorie)</span>
+                </label>
+              )}
+
+              {reconcileForm.is_expense_refund ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Catégorie de la dépense remboursée</label>
+                    <select
+                      required
+                      value={reconcileForm.category}
+                      onChange={(e) => setReconcileForm((form) => ({ ...form, category: e.target.value }))}
+                      className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Choisir la catégorie --</option>
+                      {expenseCategories.map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {budgetSummary?.items && budgetSummary.items.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Poste budgétaire (facultatif)</label>
+                      <select
+                        value={reconcileForm.budget_item_id}
+                        onChange={(e) => setReconcileForm((form) => ({ ...form, budget_item_id: Number(e.target.value) }))}
+                        className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3 py-2 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value={0}>-- Aucun poste budgétaire rattaché --</option>
+                        {budgetSummary.items.map((item) => (
+                          <option key={item.id} value={item.id}>{item.icon} {item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Type d'opération
@@ -1149,6 +1228,8 @@ export default function Overview() {
                     </div>
                   )}
                 </div>
+              )}
+              </>
               )}
 
               <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">

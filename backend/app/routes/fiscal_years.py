@@ -5,7 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user, require_manager
 from app.database import get_db
-from app.models import SCI, FiscalYear, BankTransaction, Associate, CurrentAccountMovement
+from app.models import (
+    EXPENSE_REFUND_MOVEMENT_TYPE,
+    SCI,
+    FiscalYear,
+    BankTransaction,
+    Associate,
+    CurrentAccountMovement,
+)
 from app.schemas import (
     FiscalYearCreate,
     FiscalYearResponse,
@@ -108,6 +115,7 @@ def get_fiscal_year_summary(
     for tx in transactions:
         category_name = tx.category or "Non catégorisé"
         amt = float(tx.amount)
+        is_expense_refund = tx.movement_type == EXPENSE_REFUND_MOVEMENT_TYPE
 
         # 1. Traitement des Apports et Financements Associés (Passif / Dette / Financement interne)
         if (tx.associate_id and tx.associate_id > 0) or category_name in [
@@ -125,12 +133,18 @@ def get_fiscal_year_summary(
         # 2. Traitement des Immobilisations & Notaire (Actif du bilan - EXCLUS des charges courantes!)
         if category_name in ["Acquisition bien / Notaire", "Acquisition immobilière (Achat bien / Notaire)", "Honoraires comptable/notaire"] or "notaire" in category_name.lower() or "acquisition" in category_name.lower():
             abs_amt = abs(amt)
-            total_immobilisations += abs_amt
-            category_map[category_name] = category_map.get(category_name, 0.0) + abs_amt
+            total_immobilisations += -abs_amt if is_expense_refund else abs_amt
+            category_map[category_name] = category_map.get(category_name, 0.0) + (
+                -abs_amt if is_expense_refund else abs_amt
+            )
             continue
 
         # 3. Traitement des Charges Courantes Déductibles et des Produits d'exploitation
-        if amt >= 0:
+        if is_expense_refund:
+            amount = abs(amt)
+            total_expenses -= amount
+            category_map[category_name] = category_map.get(category_name, 0.0) - amount
+        elif amt >= 0:
             total_income += amt
             category_map[category_name] = category_map.get(category_name, 0.0) + amt
         else:
@@ -282,20 +296,25 @@ def get_fiscal_year_tax_2072(
 
         amt = float(tx.amount)
 
-        if cat in ["Loyer perçu", "Autre produit"] or amt > 0:
+        is_expense_refund = tx.movement_type == EXPENSE_REFUND_MOVEMENT_TYPE
+        if not is_expense_refund and (cat in ["Loyer perçu", "Autre produit"] or amt > 0):
             l211_loyers += amt
         elif cat == "Frais bancaires" or "frais" in cat_lower or "honoraires" in cat_lower:
-            l221_frais_admin += abs(amt)
+            l221_frais_admin += -abs(amt) if is_expense_refund else abs(amt)
         elif cat == "Assurances" or "maif" in cat_lower or "assurance" in cat_lower:
-            l223_assurances += abs(amt)
+            l223_assurances += -abs(amt) if is_expense_refund else abs(amt)
         elif cat in ["Électricité / Eau", "Travaux", "Entretien"] or "eau" in cat_lower or "edf" in cat_lower:
-            l224_entretien += abs(amt)
+            l224_entretien += -abs(amt) if is_expense_refund else abs(amt)
         elif cat == "Taxe foncière" or "impôt" in cat_lower or "foncier" in cat_lower:
-            l227_impots += abs(amt)
+            l227_impots += -abs(amt) if is_expense_refund else abs(amt)
         else:
             # Défaut : dépense courante de gestion (Ligne 224)
-            if amt < 0:
-                l224_entretien += abs(amt)
+            if amt < 0 or is_expense_refund:
+                l224_entretien += -abs(amt) if is_expense_refund else abs(amt)
+
+    total_charges_deductibles = (
+        l221_frais_admin + l223_assurances + l224_entretien + l227_impots
+    )
 
     is_free_disposal = (l211_loyers == 0.0)
 

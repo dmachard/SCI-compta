@@ -13,6 +13,7 @@ from app.models import (
     Budget,
     BudgetItem,
     FiscalYear,
+    EXPENSE_REFUND_MOVEMENT_TYPE,
     FundCall,
     FundCallBudgetItem,
     FundCallLine,
@@ -427,7 +428,13 @@ def get_budget_summary(
             )
             .all()
         )
-        real = sum(abs(float(t.amount)) for t in txs if t.amount < 0)
+        real = sum(
+            -abs(float(t.amount))
+            if t.movement_type == EXPENSE_REFUND_MOVEMENT_TYPE
+            else abs(float(t.amount))
+            for t in txs
+            if t.amount < 0 or t.movement_type == EXPENSE_REFUND_MOVEMENT_TYPE
+        )
 
         variance = round(real - forecast, 2)
         consumption = round((real / forecast * 100), 1) if forecast > 0 else 0.0

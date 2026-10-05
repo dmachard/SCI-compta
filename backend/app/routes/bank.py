@@ -12,6 +12,7 @@ from app.models import (
     BankAccount,
     BankTransaction,
     CurrentAccountMovement,
+    EXPENSE_REFUND_MOVEMENT_TYPE,
     FiscalYear,
     FundCall,
     FundCallLine,
@@ -344,6 +345,34 @@ def reconcile_transaction(
     if not tx:
         raise HTTPException(404, "Transaction introuvable")
 
+    movement_type = req.movement_type if "movement_type" in req.model_fields_set else tx.movement_type
+    associate_id = req.associate_id if "associate_id" in req.model_fields_set else tx.associate_id
+    fund_call_line_id = req.fund_call_line_id if "fund_call_line_id" in req.model_fields_set else tx.fund_call_line_id
+    category = req.category if "category" in req.model_fields_set else tx.category
+
+    if movement_type == EXPENSE_REFUND_MOVEMENT_TYPE:
+        if tx.amount <= 0:
+            raise HTTPException(400, "Un remboursement doit être une somme reçue")
+        if associate_id is not None:
+            raise HTTPException(400, "Un mouvement de compte courant ne peut pas être un remboursement de dépense")
+        if fund_call_line_id:
+            raise HTTPException(400, "Un appel de fonds ne peut pas être un remboursement de dépense")
+        if not category:
+            raise HTTPException(400, "Un remboursement doit reprendre la catégorie d'une dépense")
+        expense_exists = (
+            db.query(BankTransaction.id)
+            .filter(
+                BankTransaction.category == category,
+                BankTransaction.amount < 0,
+                BankTransaction.associate_id.is_(None),
+                BankTransaction.movement_type != EXPENSE_REFUND_MOVEMENT_TYPE,
+                BankTransaction.reconciliation_status.in_(["rapprochee", "categorisee"]),
+            )
+            .first()
+        )
+        if not expense_exists:
+            raise HTTPException(400, "Aucune dépense classée ne correspond à cette catégorie")
+
     if req.category is not None:
         tx.category = req.category
     if req.movement_type is not None:
@@ -358,12 +387,20 @@ def reconcile_transaction(
         )
 
     # Mise à jour de l'associé
-    if req.associate_id is not None:
-        tx.associate_id = req.associate_id if req.associate_id > 0 else None
+    if "associate_id" in req.model_fields_set:
+        tx.associate_id = (
+            req.associate_id
+            if req.associate_id is not None and req.associate_id > 0
+            else None
+        )
 
     # Mise à jour du poste budgétaire
-    if req.budget_item_id is not None:
-        tx.budget_item_id = req.budget_item_id if req.budget_item_id > 0 else None
+    if "budget_item_id" in req.model_fields_set:
+        tx.budget_item_id = (
+            req.budget_item_id
+            if req.budget_item_id is not None and req.budget_item_id > 0
+            else None
+        )
 
     # Rattachement / dissociation éventuelle d'une ligne d'appel de fonds
     if req.fund_call_line_id is not None:
@@ -401,7 +438,12 @@ def reconcile_transaction(
     # Gérer la synchronisation avec le compte courant d'associé :
     # STRICTEMENT ET UNIQUEMENT si la catégorie est "Compte courant d'associé" !
     # Les appels de fonds pour charges ou apports au capital NE doivent JAMAIS créer de CCA.
-    if tx.associate_id and tx.reconciliation_status == "rapprochee" and tx.category == "Compte courant d'associé":
+    if (
+        tx.associate_id
+        and tx.reconciliation_status == "rapprochee"
+        and tx.category == "Compte courant d'associé"
+        and tx.movement_type != EXPENSE_REFUND_MOVEMENT_TYPE
+    ):
         mvt_type = tx.movement_type or ("versement" if tx.amount > 0 else "remboursement")
         if existing_cca:
             existing_cca.associate_id = tx.associate_id
@@ -479,4 +521,3 @@ def purge_all_transactions(
 
     db.commit()
     return {"message": f"{deleted_count} transaction(s) bancaire(s) purgée(s)"}
-

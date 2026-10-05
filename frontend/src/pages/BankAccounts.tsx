@@ -38,10 +38,13 @@ const COMMON_CATEGORIES = [
   "Autre dépense / recette",
 ];
 
+const EXPENSE_REFUND_MOVEMENT_TYPE = 'remboursement_depense';
+
 export default function BankAccounts() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<BankTransaction[]>([]);
   const [associates, setAssociates] = useState<Associate[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetTableItem[]>([]);
   const [fundCalls, setFundCalls] = useState<FundCall[]>([]);
@@ -83,15 +86,17 @@ export default function BankAccounts() {
     Promise.all([
       bankApi.getAccounts(),
       bankApi.getTransactions({ status: statusFilter || undefined, search: searchFilter || undefined }),
+      bankApi.getTransactions(),
       associatesApi.list(),
       authApi.me().catch(() => null),
       budgetApi.getSummary(new Date().getFullYear()).catch(() => null),
       budgetApi.getFundCalls(new Date().getFullYear()).catch(() => []),
       documentsApi.list().catch(() => []),
     ])
-      .then(([accs, txs, assocs, me, bSummary, fCalls, docs]) => {
+      .then(([accs, txs, allTxs, assocs, me, bSummary, fCalls, docs]) => {
         setAccounts(accs);
         setTransactions(txs);
+        setAllTransactions(allTxs);
         setAssociates(assocs);
         setCurrentUser(me);
         setDocuments(docs || []);
@@ -166,7 +171,11 @@ export default function BankAccounts() {
         associate_id: reconcileForm.associate_id > 0 ? reconcileForm.associate_id : null,
         budget_item_id: reconcileForm.budget_item_id > 0 ? reconcileForm.budget_item_id : null,
         fund_call_line_id: reconcileForm.category === "Règlement appel de fonds" ? (reconcileForm.fund_call_line_id || 0) : 0,
-        movement_type: reconcileForm.movement_type,
+        movement_type: reconcileForm.movement_type === EXPENSE_REFUND_MOVEMENT_TYPE
+          ? EXPENSE_REFUND_MOVEMENT_TYPE
+          : reconcileForm.associate_id > 0
+            ? reconcileForm.movement_type
+            : reconcilingTx.amount > 0 ? 'recette' : 'depense',
         third_party: reconcileForm.third_party,
         notes: reconcileForm.notes,
         reconciliation_status: 'rapprochee',
@@ -247,6 +256,13 @@ export default function BankAccounts() {
   const startIndex = isAll ? 0 : (safeCurrentPage - 1) * pageSize;
   const endIndex = isAll ? totalItems : Math.min(startIndex + pageSize, totalItems);
   const paginatedTransactions = isAll ? transactions : transactions.slice(startIndex, endIndex);
+  const expenseCategories = Array.from(
+    new Set(
+      allTransactions
+        .filter((tx) => tx.amount < 0 && tx.category && !tx.associate_id && tx.reconciliation_status !== 'a_traiter')
+        .map((tx) => tx.category)
+    )
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -758,6 +774,62 @@ export default function BankAccounts() {
                 <p className="text-slate-900 font-bold text-xs leading-relaxed">{reconcilingTx.original_label}</p>
               </div>
 
+              {reconcilingTx.amount > 0 && reconcileForm.associate_id === 0 && (
+                <label className="flex items-start gap-2 text-xs font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={reconcileForm.movement_type === EXPENSE_REFUND_MOVEMENT_TYPE}
+                    onChange={(e) =>
+                      setReconcileForm((form) => ({
+                        ...form,
+                        movement_type: e.target.checked ? EXPENSE_REFUND_MOVEMENT_TYPE : 'recette',
+                        category: e.target.checked ? expenseCategories[0] || '' : form.category,
+                        budget_item_id: 0,
+                      }))
+                    }
+                    className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Remboursement ou avoir d'une dépense (à déduire de cette catégorie)</span>
+                </label>
+              )}
+
+              {reconcileForm.movement_type === EXPENSE_REFUND_MOVEMENT_TYPE ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">Catégorie de la dépense remboursée</label>
+                    <select
+                      required
+                      value={reconcileForm.category}
+                      onChange={(e) => setReconcileForm((form) => ({ ...form, category: e.target.value }))}
+                      className="w-full bg-white text-slate-900 text-sm font-semibold rounded-xl px-3.5 py-2.5 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Choisir la catégorie --</option>
+                      {expenseCategories.map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                    {expenseCategories.length === 0 && (
+                      <p className="mt-1 text-[11px] text-amber-700">Aucune dépense classée ne peut être sélectionnée.</p>
+                    )}
+                  </div>
+                  {budgetItems.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">Poste budgétaire (facultatif)</label>
+                      <select
+                        value={reconcileForm.budget_item_id}
+                        onChange={(e) => setReconcileForm((form) => ({ ...form, budget_item_id: Number(e.target.value) }))}
+                        className="w-full bg-white text-slate-900 text-xs font-semibold rounded-xl px-3.5 py-2.5 border border-slate-300 focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value={0}>-- Aucun poste budgétaire --</option>
+                        {budgetItems.map((item) => (
+                          <option key={item.id} value={item.id}>{item.icon} {item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ) : (
+              <>
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-2">
                   Type d'opération
@@ -894,6 +966,8 @@ export default function BankAccounts() {
                     ))}
                   </select>
                 </div>
+              )}
+              </>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

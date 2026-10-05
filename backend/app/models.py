@@ -15,6 +15,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+EXPENSE_REFUND_MOVEMENT_TYPE = "remboursement_depense"
+
 
 # ─── Utilisateur ───────────────────────────────────────────────
 
@@ -406,4 +408,3 @@ class BudgetItem(Base):
     budget: Mapped["Budget"] = relationship(back_populates="items")
     transactions: Mapped[list["BankTransaction"]] = relationship(back_populates="budget_item")
     fund_call_items: Mapped[list["FundCallBudgetItem"]] = relationship(back_populates="budget_item")
-
