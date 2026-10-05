@@ -77,7 +77,7 @@ export const associatesApi = {
     api.put<Associate>(`/associates/${id}`, data).then((r) => r.data),
   summary: (id: number) =>
     api.get<AssociateSummary>(`/associates/${id}/summary`).then((r) => r.data),
-  createAccount: (associateId: number, data: { password: string; username?: string }) =>
+  createAccount: (associateId: number, data: { password: string; username?: string; is_admin?: boolean }) =>
     api.post<User>(`/associates/${associateId}/account`, data).then((r) => r.data),
   deleteAccount: (associateId: number) =>
     api.delete<{ message: string }>(`/associates/${associateId}/account`).then((r) => r.data),
@@ -265,5 +265,4 @@ export const budgetApi = {
 };
 
 export default api;
-
 

@@ -32,8 +32,9 @@ def _enrich_response(associate: Associate, total_shares: int, db: Session) -> As
     quote_part = (associate.shares / total_shares * 100) if total_shares > 0 else 0
     resp = AssociateResponse.model_validate(associate)
     resp.quote_part = round(quote_part, 2)
-    has_user = db.query(User).filter(User.associate_id == associate.id).first() is not None
-    resp.has_account = has_user
+    user = db.query(User).filter(User.associate_id == associate.id).first()
+    resp.has_account = user is not None
+    resp.account_is_admin = user is not None and user.role == "gerant"
     return resp
 
 
@@ -123,12 +124,13 @@ def create_or_update_associate_account(
         user.hashed_password = hash_password(data.password)
         user.full_name = f"{associate.first_name} {associate.last_name}".strip()
         user.associate_id = associate.id
+        user.role = "gerant" if data.is_admin else "associe"
     else:
         user = User(
             email=username,
             hashed_password=hash_password(data.password),
             full_name=f"{associate.first_name} {associate.last_name}".strip(),
-            role="associe",
+            role="gerant" if data.is_admin else "associe",
             associate_id=associate.id,
         )
         db.add(user)

@@ -99,6 +99,7 @@ class AssociateUpdate(BaseModel):
 class AssociateAccountCreate(BaseModel):
     password: str
     username: str | None = None
+    is_admin: bool = False
 
 
 class AssociateResponse(BaseModel):
@@ -113,6 +114,7 @@ class AssociateResponse(BaseModel):
     is_manager: bool
     quote_part: float = 0.0  # calculée
     has_account: bool = False
+    account_is_admin: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -514,5 +516,4 @@ class FundCallLineUpdate(BaseModel):
     payment_date: date | None = None
     is_paid: bool | None = None
     bank_transaction_id: int | None = None
-
 

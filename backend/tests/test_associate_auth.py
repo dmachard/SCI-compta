@@ -36,6 +36,11 @@ def test_associate_account_and_permissions(client):
     assert account_user["role"] == "associe"
     assert account_user["email"] == "nicolas"
 
+    # New associate accounts are read-only unless admin mode is explicitly enabled.
+    listed_associates = client.get("/api/associates", headers=gerant_headers)
+    assert listed_associates.status_code == 200
+    assert next(a for a in listed_associates.json() if a["id"] == assoc_id)["account_is_admin"] is False
+
     # 4. Associate logs in
     assoc_login_res = client.post(
         "/api/auth/login",
@@ -80,3 +85,54 @@ def test_associate_account_and_permissions(client):
         headers=assoc_headers,
     )
     assert forbidden_create_fy.status_code == 403
+
+    # 8. Gérant can enable and later disable full admin access for the associate account.
+    admin_account_res = client.post(
+        f"/api/associates/{assoc_id}/account",
+        json={
+            "username": "nicolas",
+            "password": "AssociatePassword123!",
+            "is_admin": True,
+        },
+        headers=gerant_headers,
+    )
+    assert admin_account_res.status_code == 200
+    assert admin_account_res.json()["role"] == "gerant"
+
+    listed_associates = client.get("/api/associates", headers=gerant_headers)
+    assert next(a for a in listed_associates.json() if a["id"] == assoc_id)["account_is_admin"] is True
+
+    admin_me_res = client.get("/api/auth/me", headers=assoc_headers)
+    assert admin_me_res.status_code == 200
+    assert admin_me_res.json()["role"] == "gerant"
+    admin_write_res = client.put(
+        "/api/sci",
+        json={"name": "Updated by associate admin"},
+        headers=assoc_headers,
+    )
+    assert admin_write_res.status_code == 200
+
+    read_only_account_res = client.post(
+        f"/api/associates/{assoc_id}/account",
+        json={
+            "username": "nicolas",
+            "password": "AssociatePassword123!",
+            "is_admin": False,
+        },
+        headers=gerant_headers,
+    )
+    assert read_only_account_res.status_code == 200
+    assert read_only_account_res.json()["role"] == "associe"
+
+    listed_associates = client.get("/api/associates", headers=gerant_headers)
+    assert next(a for a in listed_associates.json() if a["id"] == assoc_id)["account_is_admin"] is False
+
+    readonly_me_res = client.get("/api/auth/me", headers=assoc_headers)
+    assert readonly_me_res.status_code == 200
+    assert readonly_me_res.json()["role"] == "associe"
+    readonly_write_res = client.put(
+        "/api/sci",
+        json={"name": "Should be forbidden"},
+        headers=assoc_headers,
+    )
+    assert readonly_write_res.status_code == 403

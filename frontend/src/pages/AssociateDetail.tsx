@@ -29,6 +29,7 @@ export default function AssociateDetail() {
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [accountUsername, setAccountUsername] = useState('');
   const [accountPassword, setAccountPassword] = useState('');
+  const [accountIsAdmin, setAccountIsAdmin] = useState(false);
   const [accountSaving, setAccountSaving] = useState(false);
   const [accountError, setAccountError] = useState('');
 
@@ -84,7 +85,11 @@ export default function AssociateDetail() {
     setAccountSaving(true);
     setAccountError('');
     try {
-      await associatesApi.createAccount(parseInt(id), { password: accountPassword, username: accountUsername });
+      await associatesApi.createAccount(parseInt(id), {
+        password: accountPassword,
+        username: accountUsername,
+        is_admin: accountIsAdmin,
+      });
       setShowAccountModal(false);
       setAccountPassword('');
       loadData();
@@ -177,6 +182,7 @@ export default function AssociateDetail() {
                     setAccountError('');
                     setAccountPassword('');
                     setAccountUsername(associate?.email || '');
+                    setAccountIsAdmin(associate?.account_is_admin || false);
                     setShowAccountModal(true);
                   }}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
@@ -481,6 +487,21 @@ export default function AssociateDetail() {
                   onChange={(e) => setAccountPassword(e.target.value)}
                 />
               </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={accountIsAdmin}
+                  onChange={(e) => setAccountIsAdmin(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>
+                  <span className="block text-xs font-bold text-slate-800">Mode admin</span>
+                  <span className="mt-1 block text-xs text-slate-600">
+                    Autorise la modification de toute la SCI et de sa configuration. Sinon, l’accès reste en lecture seule.
+                  </span>
+                </span>
+              </label>
 
               <div className="flex items-center justify-between pt-2">
                 {associate.has_account ? (

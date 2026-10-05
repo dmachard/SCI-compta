@@ -47,6 +47,7 @@ export interface Associate {
   is_manager: boolean;
   quote_part: number;
   has_account?: boolean;
+  account_is_admin?: boolean;
 }
 
 export interface AssociateSummary {
@@ -338,5 +339,4 @@ export interface FundCallCreateRequest {
   call_type?: string;
   selected_item_ids: number[];
 }
-
 
